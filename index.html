@@ -300,8 +300,8 @@
     <div class="body" id="projList"></div>
   </details>
 
-  <details class="card hide-night">
-    <summary><span class="emoji">📰</span>今日のニュース</summary>
+  <details class="card hide-night" id="newsDetails">
+    <summary><span class="emoji">📰</span>AIニュース（最新3件）</summary>
     <div class="body" id="newsBox"></div>
   </details>
 
@@ -383,13 +383,6 @@ const PROJECTS = [
   {name:"絵本制作",             pct:30, st:"active"},
   {name:"絵本クラファン準備",   pct:15, st:"hold"},
   {name:"出産準備",             pct:50, st:"active"},
-];
-
-const NEWS = [
-  {cat:"AI", title:"動画系AIツールの新機能が続々", body:"ショート動画の編集支援機能が各社から発表。今すぐ乗り換える必要はなく、案件で必要になったら触れば十分です。"},
-  {cat:"フリーランス", title:"フリーランス新法の周知が進む", body:"発注側の書面交付が義務化され、契約条件が明確になりやすい流れ。受注側には追い風です。"},
-  {cat:"SNS運用", title:"ショート動画の平均視聴時間が増加", body:"短尺より「最後まで見られる構成」が評価される傾向。今の制作方針のままで問題ありません。"},
-  {cat:"絵本業界", title:"絵本のクラファン成功事例が増加", body:"少部数でも支援が集まりやすいジャンルとして注目。準備は焦らず、制作を優先で大丈夫です。"},
 ];
 
 const JOBS = [
@@ -490,11 +483,83 @@ function renderSkip(){
   });
 }
 
-/* ====== ニュース・案件 ====== */
-function renderNews(){
-  document.getElementById("newsBox").innerHTML = NEWS.map(n=>`
-    <div class="news"><span class="cat">${n.cat}</span><h3>${n.title}</h3><p>${n.body}</p></div>`).join("");
+/* ====== AIニュース（Gemini検索で最新3件・1日1回キャッシュ） ====== */
+function renderNews(items){
+  const box = document.getElementById("newsBox");
+  box.innerHTML = "";
+  items.forEach(n=>{
+    const d = document.createElement("div");
+    d.className = "news";
+    d.innerHTML = `<span class="cat">AI</span><h3></h3><p></p>`;
+    d.querySelector("h3").textContent = n.title || "";
+    d.querySelector("p").textContent = n.summary || "";
+    box.appendChild(d);
+  });
+  const btn = document.createElement("button");
+  btn.className = "btn sub"; btn.type = "button";
+  btn.style.cssText = "margin-top:8px;padding:6px 12px;font-size:.78rem";
+  btn.textContent = "🔄 最新に更新";
+  btn.addEventListener("click", ()=> loadNews(true));
+  box.appendChild(btn);
 }
+
+let newsLoading = false;
+async function loadNews(force){
+  if (newsLoading) return;
+  const box = document.getElementById("newsBox");
+  const today = new Date().toISOString().slice(0,10);
+  let cache = null;
+  try { cache = JSON.parse(localStorage.getItem("butler.news")) } catch(e){}
+  if (!force && cache && cache.date === today && Array.isArray(cache.items) && cache.items.length){
+    renderNews(cache.items); return;
+  }
+  if (!store.key){
+    box.innerHTML = `<div class="ai-note">⚙ 設定でGemini APIキーを入れると、最新のAIニュースを3件お届けします。</div>`;
+    return;
+  }
+  newsLoading = true;
+  box.innerHTML = `<div class="ai-note">📡 執事が最新のAIニュースを集めています…</div>`;
+
+  const prompt = `あなたは執事AI「Butler」です。Google検索を使って、本日（${today}）時点で新しいAI関連ニュースを3件選んでください。
+
+# 読者
+妊娠中・子育て中の日本のフリーランス。仕事はナレーション・動画編集・ショート動画制作・SNS運用。
+
+# ルール
+- 日本語。各ニュースの要約は3行以内（120字以内）
+- 不安や焦りを煽る表現は禁止（「乗り遅れる」「今すぐやらないと」等も禁止）
+- できれば要約の最後に、読者の仕事との関係をひとこと添える（なければ無理に書かない）
+- なるべく直近1週間以内のニュースを優先する
+
+# 出力形式（このJSONのみを出力。前置き・解説は不要）
+{"items":[{"title":"","summary":""},{"title":"","summary":""},{"title":"","summary":""}]}`;
+
+  try {
+    const res = parseJsonLoose(await callGemini(prompt, true));
+    const items = (res.items || []).filter(n=>n && n.title).slice(0,3);
+    if (!items.length) throw new Error("記事が取得できませんでした");
+    localStorage.setItem("butler.news", JSON.stringify({date: today, items}));
+    renderNews(items);
+  } catch(e){
+    box.innerHTML = "";
+    const note = document.createElement("div");
+    note.className = "ai-note";
+    note.textContent = "取得できませんでした（" + e.message + "）";
+    const btn = document.createElement("button");
+    btn.className = "btn sub"; btn.type = "button";
+    btn.style.cssText = "margin-top:8px;padding:6px 12px;font-size:.78rem";
+    btn.textContent = "🔄 もう一度試す";
+    btn.addEventListener("click", ()=> loadNews(true));
+    box.append(note, btn);
+  } finally {
+    newsLoading = false;
+  }
+}
+document.getElementById("newsDetails").addEventListener("toggle", e=>{
+  if (e.target.open) loadNews(false);
+});
+
+/* ====== 案件 ====== */
 function renderJobs(){
   const box = document.getElementById("jobBox");
   box.innerHTML = "";
@@ -546,17 +611,19 @@ function renderNight(){
 /* ====== Gemini API（buzzrと同方式） ====== */
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
 
-async function callGemini(prompt){
+async function callGemini(prompt, useSearch){
   if (!store.key) throw new Error("NOKEY");
+  const body = {
+    contents:[{ parts:[{ text: prompt }] }],
+    generationConfig:{ maxOutputTokens: 2048, temperature: 0.7 }
+  };
+  if (useSearch) body.tools = [{ google_search: {} }];   // Google検索グラウンディング
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${store.key}`,
     {
       method:"POST",
       headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({
-        contents:[{ parts:[{ text: prompt }] }],
-        generationConfig:{ maxOutputTokens: 2048, temperature: 0.7 }
-      })
+      body: JSON.stringify(body)
     }
   );
   if (!res.ok){
@@ -799,7 +866,7 @@ function applyMode(night){
 modeBtn.addEventListener("click", ()=> applyMode(!document.body.classList.contains("night")));
 
 /* ====== 初期化 ====== */
-renderTasks(); renderSkip(); renderPrioPick(); renderProjects(); renderNews(); renderJobs(); renderNight();
+renderTasks(); renderSkip(); renderPrioPick(); renderProjects(); renderJobs(); renderNight();
 applyMode(isNightHour());   // 20時以降は自動で夜モード
 </script>
 </body>
