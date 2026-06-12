@@ -305,7 +305,7 @@
     <div class="body" id="newsBox"></div>
   </details>
 
-  <details class="card hide-night">
+  <details class="card hide-night" id="jobsDetails">
     <summary><span class="emoji">📡</span>新着案件レーダー</summary>
     <div class="body">
       <div id="jobBox"></div>
@@ -383,14 +383,6 @@ const PROJECTS = [
   {name:"絵本制作",             pct:30, st:"active"},
   {name:"絵本クラファン準備",   pct:15, st:"hold"},
   {name:"出産準備",             pct:50, st:"active"},
-];
-
-const JOBS = [
-  {title:"ショート動画 編集＋テロップ入れ（TikTok/リール 月10本）", meta:"月50,000円 ／ 継続案件 ／ 素材支給", isNew:true},
-  {title:"育児系ショート動画 編集（月8本）", meta:"月40,000円 ／ 継続案件 ／ テンプレあり", isNew:true},
-  {title:"企業VPナレーション（女性・落ち着いた声）", meta:"〜30,000円 ／ 宅録OK ／ 納期1週間", isNew:true},
-  {title:"絵本読み聞かせ音声の収録", meta:"〜15,000円 ／ 宅録OK", isNew:true},
-  {title:"ママ向けInstagram運用代行", meta:"月30,000円 ／ 週3投稿", isNew:false},
 ];
 
 const DEFAULT_SKIP = ["新しいAIツールの調査", "SNSの分析・数字チェック", "新規企画の立案"];
@@ -559,21 +551,115 @@ document.getElementById("newsDetails").addEventListener("toggle", e=>{
   if (e.target.open) loadNews(false);
 });
 
-/* ====== 案件 ====== */
-function renderJobs(){
+/* ====== 新着案件レーダー（Gemini検索・1日1回キャッシュ） ====== */
+function renderJobs(items){
   const box = document.getElementById("jobBox");
   box.innerHTML = "";
-  JOBS.slice(0,5).forEach(j=>{
+  items.slice(0,5).forEach(j=>{
     const d = document.createElement("div");
     d.className = "job";
-    d.innerHTML = `<h3>${j.isNew?'<span class="new">NEW</span>':''}</h3><div class="meta"></div>
-      <button class="btn sub" type="button" style="margin-top:6px;padding:6px 12px;font-size:.78rem">✉️ 営業文を作る</button>`;
-    d.querySelector("h3").append(j.title);
-    d.querySelector(".meta").textContent = j.meta;
-    d.querySelector("button").addEventListener("click", ()=> makeSales(`${j.title}\n条件: ${j.meta}`));
+    const h = document.createElement("h3");
+    const badge = document.createElement("span"); badge.className = "new"; badge.textContent = "NEW";
+    h.appendChild(badge);
+    if (j.url && /^https?:\/\/(www\.)?(crowdworks\.jp|lancers\.jp)\//.test(j.url)){
+      const a = document.createElement("a");
+      a.href = j.url; a.target = "_blank"; a.rel = "noopener";
+      a.style.color = "inherit";
+      a.textContent = j.title;
+      h.appendChild(a);
+    } else {
+      h.append(j.title || "");
+    }
+    const meta = document.createElement("div"); meta.className = "meta";
+    meta.textContent = [j.source, j.meta].filter(Boolean).join(" ／ ");
+    d.append(h, meta);
+    if (j.why){
+      const why = document.createElement("div"); why.className = "meta";
+      why.textContent = "🤵 " + j.why;
+      d.appendChild(why);
+    }
+    const btn = document.createElement("button");
+    btn.className = "btn sub"; btn.type = "button";
+    btn.style.cssText = "margin-top:6px;padding:6px 12px;font-size:.78rem";
+    btn.textContent = "✉️ 営業文を作る";
+    btn.addEventListener("click", ()=> makeSales(`${j.title}\n掲載: ${j.source || ""}\n条件: ${j.meta || ""}`));
+    d.appendChild(btn);
     box.appendChild(d);
   });
+  const refresh = document.createElement("button");
+  refresh.className = "btn sub"; refresh.type = "button";
+  refresh.style.cssText = "margin-top:10px;padding:6px 12px;font-size:.78rem";
+  refresh.textContent = "🔄 新着を再取得";
+  refresh.addEventListener("click", ()=> loadJobs(true));
+  const note = document.createElement("div");
+  note.className = "ai-note";
+  note.textContent = "※ 検索ベースのため、リンク先の募集が終了している場合があります。応募前にページ側の条件をご確認ください。";
+  box.append(refresh, note);
 }
+
+let jobsLoading = false;
+async function loadJobs(force){
+  if (jobsLoading) return;
+  const box = document.getElementById("jobBox");
+  const today = new Date().toISOString().slice(0,10);
+  let cache = null;
+  try { cache = JSON.parse(localStorage.getItem("butler.jobs")) } catch(e){}
+  if (!force && cache && cache.date === today && Array.isArray(cache.items) && cache.items.length){
+    renderJobs(cache.items); return;
+  }
+  if (!store.key){
+    box.innerHTML = `<div class="ai-note">⚙ 設定でGemini APIキーを入れると、クラウドワークス・ランサーズの新着案件を探します。</div>`;
+    return;
+  }
+  jobsLoading = true;
+  box.innerHTML = `<div class="ai-note">📡 執事がクラウドワークス・ランサーズの新着案件を探しています…（10秒ほど）</div>`;
+
+  const prompt = `あなたは執事AI「Butler」です。Google検索を使って、クラウドワークス（crowdworks.jp）とランサーズ（lancers.jp）で現在募集中の案件を探してください。
+
+# 探す案件（優先順）
+1. ショート動画編集（TikTok・Instagramリール・YouTubeショート）
+2. ナレーション・声のお仕事（宅録可能なもの）
+3. そのほか下のプロフィールに合いそうな案件（動画編集・SNS運用など）
+
+# 応募者プロフィール
+${profileText()}
+
+# ルール
+- 最大5件。実際に検索で見つかった件数だけでよい
+- 架空の案件・うろ覚えの案件は絶対に作らない。確認できたものだけ
+- なるべく新しい募集を優先
+- meta: 報酬・条件（検索結果から分かる範囲で。不明なら空文字）
+- why: この人に合う理由をひとこと（20字程度）
+- url: 実際の募集ページのURL（crowdworks.jp または lancers.jp のもの。不明なら空文字）
+- source: 「クラウドワークス」か「ランサーズ」
+
+# 出力形式（このJSONのみを出力。前置き・解説は不要）
+{"items":[{"title":"","source":"","meta":"","url":"","why":""}]}`;
+
+  try {
+    const res = parseJsonLoose(await callGemini(prompt, true));
+    const items = (res.items || []).filter(j=>j && j.title).slice(0,5);
+    if (!items.length) throw new Error("今日は条件に合う新着が見つかりませんでした");
+    localStorage.setItem("butler.jobs", JSON.stringify({date: today, items}));
+    renderJobs(items);
+  } catch(e){
+    box.innerHTML = "";
+    const note = document.createElement("div");
+    note.className = "ai-note";
+    note.textContent = "取得できませんでした（" + e.message + "）";
+    const btn = document.createElement("button");
+    btn.className = "btn sub"; btn.type = "button";
+    btn.style.cssText = "margin-top:8px;padding:6px 12px;font-size:.78rem";
+    btn.textContent = "🔄 もう一度試す";
+    btn.addEventListener("click", ()=> loadJobs(true));
+    box.append(note, btn);
+  } finally {
+    jobsLoading = false;
+  }
+}
+document.getElementById("jobsDetails").addEventListener("toggle", e=>{
+  if (e.target.open) loadJobs(false);
+});
 
 /* ====== 夜モード ====== */
 function renderNight(){
@@ -866,7 +952,7 @@ function applyMode(night){
 modeBtn.addEventListener("click", ()=> applyMode(!document.body.classList.contains("night")));
 
 /* ====== 初期化 ====== */
-renderTasks(); renderSkip(); renderPrioPick(); renderProjects(); renderJobs(); renderNight();
+renderTasks(); renderSkip(); renderPrioPick(); renderProjects(); renderNight();
 applyMode(isNightHour());   // 20時以降は自動で夜モード
 </script>
 </body>
