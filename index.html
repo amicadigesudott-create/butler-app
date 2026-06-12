@@ -323,7 +323,7 @@
     <summary><span class="emoji">🌿</span>健康管理</summary>
     <div class="body">
       <div class="health-grid">
-        <div class="week-banner" id="weekBanner">出産予定日を設定すると妊娠週数を表示します　<input type="date" id="dueDate" style="font-family:inherit"></div>
+        <div class="week-banner" id="weekBanner"></div>
         <div class="h-item"><div class="v">4,280</div><div class="k">歩数</div></div>
         <div class="h-item"><div class="v">20分</div><div class="k">運動</div></div>
         <div class="h-item"><div class="v">1.2L</div><div class="k">水分</div></div>
@@ -530,19 +530,39 @@ function renderProjects(){
 }
 
 /* ====== 健康（妊娠週数） ====== */
-const dueInput = document.getElementById("dueDate");
+function showDueInput(){
+  const banner = document.getElementById("weekBanner");
+  banner.innerHTML = "";
+  banner.append("出産予定日: ");
+  const inp = document.createElement("input");
+  inp.type = "date";
+  inp.value = store.due;
+  inp.style.fontFamily = "inherit";
+  inp.addEventListener("change", ()=>{
+    if (!inp.value) return;
+    store.due = inp.value;
+    renderWeek();
+  });
+  banner.appendChild(inp);
+}
 function renderWeek(){
   const banner = document.getElementById("weekBanner");
-  if (!store.due) return;
+  if (!store.due){ showDueInput(); return; }
   const due = new Date(store.due + "T00:00:00");
   const daysLeft = Math.round((due - new Date())/86400000);
   const totalDays = 280 - daysLeft;            // 妊娠40週=280日
-  if (totalDays < 0 || totalDays > 320) return;
+  if (totalDays < 0 || totalDays > 320){ showDueInput(); return; }
   const w = Math.floor(totalDays/7), d = totalDays%7;
-  banner.innerHTML = `🤰 妊娠 ${w}週${d}日（予定日まで あと${Math.max(daysLeft,0)}日）`;
+  banner.innerHTML = "";
+  const span = document.createElement("span");
+  span.textContent = `🤰 妊娠 ${w}週${d}日（予定日まで あと${Math.max(daysLeft,0)}日）`;
+  const edit = document.createElement("button");
+  edit.type = "button";
+  edit.textContent = "変更";
+  edit.style.cssText = "margin-left:10px;border:none;background:var(--card);color:var(--text-sub);border-radius:999px;padding:3px 10px;font-size:.7rem;font-family:inherit;cursor:pointer;vertical-align:1px";
+  edit.addEventListener("click", showDueInput);
+  banner.append(span, edit);
 }
-dueInput.value = store.due;
-dueInput.addEventListener("change", ()=>{ store.due = dueInput.value; renderWeek(); });
 
 /* ====== レシピ（日替わり） ====== */
 function renderRecipe(){
