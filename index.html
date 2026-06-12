@@ -53,7 +53,7 @@
 
   /* ---------- ヘッダー ---------- */
   header{display:flex;align-items:center;gap:14px;padding:10px 4px 18px}
-  .avatar{width:56px;height:56px;flex:none}
+  .avatar{width:64px;height:64px;flex:none}
   .h-date{font-size:.8rem;color:var(--text-sub);letter-spacing:.04em}
   .h-greet{font-size:1.05rem;font-weight:600;color:var(--green)}
   .mode-btn{
@@ -185,6 +185,23 @@
   footer{text-align:center;font-size:.7rem;color:var(--text-sub);padding:18px 0 4px}
 
   /* ---------- すり合わせ・AI ---------- */
+  .pick-list{
+    max-height:185px;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    border:1px solid var(--beige-deep);border-radius:12px;background:var(--ivory);
+    margin-bottom:8px;
+  }
+  .pick-item{
+    display:flex;align-items:center;gap:10px;padding:10px 12px;
+    border-bottom:1px solid var(--beige);cursor:pointer;font-size:.88rem;user-select:none;
+  }
+  .pick-item:last-child{border-bottom:none}
+  .pick-item .pcheck{
+    width:20px;height:20px;flex:none;border-radius:6px;border:2px solid var(--beige-deep);
+    display:flex;align-items:center;justify-content:center;font-size:.65rem;color:transparent;
+  }
+  .pick-item.on .pcheck{background:var(--green);border-color:var(--green);color:#fff}
+  .pick-item.on{color:var(--green);font-weight:600}
+  .pick-tag{font-size:.62rem;color:var(--text-sub);background:var(--beige);border-radius:999px;padding:2px 8px;margin-left:auto;flex:none}
   .align-row{display:flex;gap:8px}
   .align-row input{
     flex:1;border:1px solid var(--beige-deep);background:var(--ivory);border-radius:12px;
@@ -236,16 +253,26 @@
 <body>
 
 <header>
-  <svg class="avatar" viewBox="0 0 64 64" aria-hidden="true">
-    <circle cx="32" cy="32" r="30" fill="#EFE8DA"/>
-    <circle cx="32" cy="26" r="11" fill="#F6EFE3" stroke="#2E4A3D" stroke-width="1.6"/>
-    <path d="M20 27 Q21 15 32 15 Q43 15 44 27 Q42 21 32 21 Q22 21 20 27Z" fill="#2E4A3D"/>
-    <circle cx="28" cy="26.5" r="1.2" fill="#2E4A3D"/>
-    <circle cx="36" cy="26.5" r="1.2" fill="#2E4A3D"/>
-    <path d="M29.5 31 Q32 32.8 34.5 31" stroke="#2E4A3D" stroke-width="1.3" fill="none" stroke-linecap="round"/>
-    <path d="M19 50 Q22 38 32 38 Q42 38 45 50Z" fill="#2E4A3D"/>
-    <path d="M32 38 L29 44 L32 50 L35 44Z" fill="#F6EFE3"/>
-    <path d="M32 40.5 L29.5 38.5 L34.5 38.5Z" fill="#7A604A"/>
+  <svg class="avatar" viewBox="0 0 512 512" aria-hidden="true">
+    <circle cx="256" cy="256" r="250" fill="#EFE8DA"/>
+    <path d="M138 470 Q160 350 256 350 Q352 350 374 470 Z" fill="#2E4A3D"/>
+    <path d="M256 350 L226 392 L256 455 L286 392 Z" fill="#FBF5E8"/>
+    <path d="M249 371 Q217 355 215 380 Q217 403 249 387 Z" fill="#20302A"/>
+    <path d="M263 371 Q295 355 297 380 Q295 403 263 387 Z" fill="#20302A"/>
+    <circle cx="256" cy="379" r="11" fill="#16221D"/>
+    <path d="M256 412 Q297 425 322 410" stroke="#C9A227" stroke-width="6" fill="none"/>
+    <circle cx="324" cy="410" r="9" fill="#C9A227"/>
+    <circle cx="256" cy="228" r="112" fill="#FBF5E8" stroke="#2E4A3D" stroke-width="9"/>
+    <path d="M146 232 Q146 118 256 118 Q366 118 366 232 Q366 191 338 175 Q315 164 256 164 Q197 164 174 175 Q146 191 146 232 Z" fill="#2E4A3D"/>
+    <circle cx="212" cy="240" r="9" fill="#2E4A3D"/>
+    <circle cx="299" cy="240" r="9" fill="#2E4A3D"/>
+    <circle cx="299" cy="240" r="29" stroke="#C9A227" stroke-width="7" fill="none"/>
+    <path d="M299 269 Q306 297 326 304" stroke="#C9A227" stroke-width="5" fill="none"/>
+    <path d="M251 277 Q235 286 221 277 Q212 270 217 261" stroke="#2E4A3D" stroke-width="10" fill="none" stroke-linecap="round"/>
+    <path d="M261 277 Q275 285 286 277 Q293 271 291 263" stroke="#2E4A3D" stroke-width="10" fill="none" stroke-linecap="round"/>
+    <path d="M247 304 Q256 312 265 304" stroke="#2E4A3D" stroke-width="8" fill="none" stroke-linecap="round"/>
+    <circle cx="176" cy="272" r="15" fill="#F2BCAD" opacity="0.8"/>
+    <circle cx="336" cy="277" r="13" fill="#F2BCAD" opacity="0.8"/>
   </svg>
   <div>
     <div class="h-date" id="dateLine"></div>
@@ -264,13 +291,14 @@
 <div id="dayPanel">
 
   <section class="card">
-    <h2><span class="emoji">🤝</span>執事とすり合わせ</h2>
+    <h2><span class="emoji">🤝</span>執事とすり合わせ — あなたが今日いちばん優先したいのは？</h2>
+    <div class="pick-list" id="prioPick"></div>
     <div class="align-row">
-      <input id="myPriority" type="text" placeholder="あなたが今日いちばん優先したいことは？">
+      <input id="myPriority" type="text" placeholder="その他（自由入力もOK）">
       <button class="btn" id="alignBtn" type="button">相談する</button>
     </div>
     <div class="ai-out" id="alignOut"></div>
-    <div class="ai-note" id="alignNote">あなたの「最優先」と執事の優先順位ルールをすり合わせて、今日の3件を組み直します。</div>
+    <div class="ai-note" id="alignNote">チェックした「あなたの最優先」と執事の優先順位ルールをすり合わせて、今日の3件を組み直します。</div>
   </section>
 
   <section class="card">
@@ -648,10 +676,38 @@ function needKey(){
   openSettings();
 }
 
+/* ====== すり合わせ: 優先候補チェックリスト ====== */
+let prioSelected = new Set();
+function renderPrioPick(){
+  const box = document.getElementById("prioPick");
+  const items = [];
+  tasks.slice(0,3).forEach(t=>items.push({label:t.text, tag:"今日のタスク"}));
+  PROJECTS.forEach(p=>{ if (p.st === "active") items.push({label:p.name + "を進める", tag:"プロジェクト"}); });
+  const seen = new Set();
+  box.innerHTML = "";
+  items.forEach(it=>{
+    if (seen.has(it.label)) return; seen.add(it.label);
+    const d = document.createElement("div");
+    d.className = "pick-item" + (prioSelected.has(it.label) ? " on" : "");
+    d.innerHTML = `<span class="pcheck">✓</span><span class="plabel"></span><span class="pick-tag"></span>`;
+    d.querySelector(".plabel").textContent = it.label;
+    d.querySelector(".pick-tag").textContent = it.tag;
+    d.addEventListener("click", ()=>{
+      if (prioSelected.has(it.label)) prioSelected.delete(it.label); else prioSelected.add(it.label);
+      renderPrioPick();
+    });
+    box.appendChild(d);
+  });
+  prioSelected = new Set([...prioSelected].filter(s=>seen.has(s)));
+}
+
 /* ====== すり合わせ ====== */
 async function doAlign(){
-  const input = document.getElementById("myPriority").value.trim();
-  if (!input){ toast("今日の最優先を一言で教えてください"); return; }
+  const free = document.getElementById("myPriority").value.trim();
+  const picks = [...prioSelected];
+  if (free) picks.push(free);
+  if (!picks.length){ toast("優先したいものにチェック（または入力）してください"); return; }
+  const input = picks.join("、");
   if (!store.key){ needKey(); return; }
 
   const btn = document.getElementById("alignBtn");
@@ -699,6 +755,8 @@ ${tasks.slice(0,3).map((t,i)=>`${i+1}. ${t.text}${t.done?"（完了済み）":""
     if (Array.isArray(res.tasks) && res.tasks.length){
       tasks = res.tasks.slice(0,3).map(t=>({text:String(t).trim(), done:false}));
       store.tasks = tasks; renderTasks(); renderNight();
+      prioSelected.clear(); renderPrioPick();
+      document.getElementById("myPriority").value = "";
     }
     if (Array.isArray(res.notToday) && res.notToday.length){
       skipItems = res.notToday.slice(0,3).map(s=>String(s).trim());
@@ -816,7 +874,7 @@ function applyMode(night){
 modeBtn.addEventListener("click", ()=> applyMode(!document.body.classList.contains("night")));
 
 /* ====== 初期化 ====== */
-renderTasks(); renderSkip(); renderProjects(); renderWeek(); renderRecipe(); renderNews(); renderJobs(); renderNight();
+renderTasks(); renderSkip(); renderPrioPick(); renderProjects(); renderWeek(); renderRecipe(); renderNews(); renderJobs(); renderNight();
 applyMode(isNightHour());   // 20時以降は自動で夜モード
 </script>
 </body>
