@@ -132,6 +132,17 @@
   body.night .badge.active{background:#3A5247;color:#D7E3DA}
   .bar{height:5px;border-radius:99px;background:var(--beige);margin-top:7px;overflow:hidden}
   .bar i{display:block;height:100%;border-radius:99px;background:var(--green-soft)}
+  .proj-edit{padding:10px 0;border-bottom:1px solid var(--beige)}
+  .proj-edit:last-of-type{border-bottom:none}
+  .proj-edit .pe-name{
+    width:100%;border:1px solid var(--beige-deep);background:var(--ivory);border-radius:8px;
+    padding:7px 10px;font-family:inherit;font-size:.88rem;color:var(--text);
+  }
+  .pe-row2{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .pe-row2 input[type=range]{flex:1;accent-color:var(--green);min-width:0}
+  .pe-pct{font-size:.8rem;color:var(--green);width:42px;text-align:right;font-weight:600;flex:none}
+  .pe-st{border:none;font-family:inherit;cursor:pointer}
+  .pe-del{border:none;background:none;font-size:1rem;cursor:pointer;flex:none;padding:2px}
 
   /* ---------- ニュース ---------- */
   .news{padding:10px 0;border-bottom:1px solid var(--beige)}
@@ -297,7 +308,10 @@
   <div class="grid2">
   <details class="card hide-night">
     <summary><span class="emoji">📂</span>プロジェクト進捗</summary>
-    <div class="body" id="projList"></div>
+    <div class="body">
+      <div id="projList"></div>
+      <button class="btn sub" id="projEditBtn" type="button" style="margin-top:10px;padding:6px 12px;font-size:.78rem">✏️ 編集</button>
+    </div>
   </details>
 
   <details class="card hide-night" id="newsDetails">
@@ -373,10 +387,11 @@ const DEFAULT_TASKS = [
   "少年ママアカウントに1投稿する",       // 2. 将来の収益化
 ];
 
-const PROJECTS = [
+const DEFAULT_PROJECTS = [
   {name:"ナレーション案件獲得", pct:40, st:"active"},
   {name:"動画編集案件獲得",     pct:25, st:"active"},
   {name:"少年ママでセリフ仕事を獲得", pct:10, st:"active"},
+  {name:"ボイサン撮り直し、ぷっちーに提出", pct:0, st:"active"},
   {name:"育児系アカウント再運用（週2回・月木更新）", pct:5, st:"active"},
   {name:"Premiere Pro 練習",    pct:0,  st:"active"},
   {name:"Fableを使い倒す（6/22まで）", pct:0, st:"active"},
@@ -398,9 +413,12 @@ const store = {
   set skip(v){ localStorage.setItem("butler.skip", JSON.stringify(v)) },
   get profile(){ try{ return JSON.parse(localStorage.getItem("butler.profile")) || {} }catch(e){ return {} } },
   set profile(v){ localStorage.setItem("butler.profile", JSON.stringify(v)) },
+  get projects(){ try{ return JSON.parse(localStorage.getItem("butler.projects")) || null }catch(e){ return null } },
+  set projects(v){ localStorage.setItem("butler.projects", JSON.stringify(v)) },
 };
 let tasks = store.tasks || DEFAULT_TASKS.map(t => ({text:t, done:false}));
 let skipItems = store.skip || DEFAULT_SKIP.slice();
+let projects = store.projects || DEFAULT_PROJECTS.map(p => ({...p}));
 
 /* ====== ヘッダー・執事の一言 ====== */
 const now = new Date();
@@ -453,17 +471,95 @@ function renderTasks(){
   });
 }
 
-/* ====== プロジェクト ====== */
+/* ====== プロジェクト（編集機能つき） ====== */
+const ST_LABEL = {active:"進行中", hold:"保留", done:"完了"};
+const ST_CYCLE = {active:"hold", hold:"done", done:"active"};
+let projEditing = false;
+
+function saveProjects(){
+  store.projects = projects;
+  renderPrioPick();   // すり合わせ候補にも反映
+}
+
 function renderProjects(){
   const box = document.getElementById("projList");
-  const label = {active:"進行中", hold:"保留", done:"完了"};
-  box.innerHTML = PROJECTS.map(p=>`
-    <div class="proj">
-      <div class="proj-top">${p.name}
-        <span class="badge ${p.st}">${label[p.st]}</span></div>
-      <div class="bar"><i style="width:${p.pct}%"></i></div>
-    </div>`).join("");
+  box.innerHTML = "";
+
+  projects.forEach((p, i)=>{
+    if (!projEditing){
+      const d = document.createElement("div");
+      d.className = "proj";
+      d.innerHTML = `<div class="proj-top"><span class="pname"></span><span class="badge ${p.st}">${ST_LABEL[p.st]}</span></div>
+        <div class="bar"><i style="width:${p.pct}%"></i></div>`;
+      d.querySelector(".pname").textContent = p.name;
+      box.appendChild(d);
+      return;
+    }
+    /* --- 編集モードの行 --- */
+    const d = document.createElement("div");
+    d.className = "proj-edit";
+
+    const name = document.createElement("input");
+    name.type = "text"; name.className = "pe-name"; name.value = p.name;
+    name.addEventListener("change", ()=>{
+      const v = name.value.trim();
+      if (v) p.name = v; else name.value = p.name;
+      saveProjects();
+    });
+
+    const row2 = document.createElement("div");
+    row2.className = "pe-row2";
+
+    const range = document.createElement("input");
+    range.type = "range"; range.min = 0; range.max = 100; range.step = 5; range.value = p.pct;
+    const pct = document.createElement("span");
+    pct.className = "pe-pct"; pct.textContent = p.pct + "%";
+    range.addEventListener("input", ()=>{ p.pct = +range.value; pct.textContent = p.pct + "%"; });
+    range.addEventListener("change", saveProjects);
+
+    const st = document.createElement("button");
+    st.type = "button"; st.className = "pe-st badge " + p.st; st.textContent = ST_LABEL[p.st];
+    st.addEventListener("click", ()=>{
+      p.st = ST_CYCLE[p.st];
+      st.className = "pe-st badge " + p.st;
+      st.textContent = ST_LABEL[p.st];
+      saveProjects();
+    });
+
+    const del = document.createElement("button");
+    del.type = "button"; del.className = "pe-del"; del.textContent = "🗑";
+    del.addEventListener("click", ()=>{
+      if (!confirm(`「${p.name}」を削除しますか？`)) return;
+      projects.splice(i, 1);
+      saveProjects(); renderProjects();
+    });
+
+    row2.append(range, pct, st, del);
+    d.append(name, row2);
+    box.appendChild(d);
+  });
+
+  if (projEditing){
+    const add = document.createElement("button");
+    add.type = "button"; add.className = "btn sub";
+    add.style.cssText = "margin-top:10px;padding:6px 12px;font-size:.78rem";
+    add.textContent = "＋ プロジェクトを追加";
+    add.addEventListener("click", ()=>{
+      projects.push({name:"新しいプロジェクト", pct:0, st:"active"});
+      saveProjects(); renderProjects();
+      const inputs = box.querySelectorAll(".pe-name");
+      const last = inputs[inputs.length - 1];
+      if (last){ last.focus(); last.select(); }
+    });
+    box.appendChild(add);
+  }
 }
+
+document.getElementById("projEditBtn").addEventListener("click", ()=>{
+  projEditing = !projEditing;
+  document.getElementById("projEditBtn").textContent = projEditing ? "✔ 編集を終える" : "✏️ 編集";
+  renderProjects();
+});
 
 /* ====== やらないこと ====== */
 function renderSkip(){
@@ -761,7 +857,7 @@ function renderPrioPick(){
   const box = document.getElementById("prioPick");
   const items = [];
   tasks.slice(0,3).forEach(t=>items.push({label:t.text, tag:"今日のタスク"}));
-  PROJECTS.forEach(p=>{ if (p.st === "active") items.push({label:p.name + "を進める", tag:"プロジェクト"}); });
+  projects.forEach(p=>{ if (p.st === "active") items.push({label:p.name + "を進める", tag:"プロジェクト"}); });
   const seen = new Set();
   box.innerHTML = "";
   items.forEach(it=>{
@@ -811,7 +907,7 @@ ${profileText()}
 4. 情報収集（最下位）
 
 # 進行中プロジェクト
-${PROJECTS.map(p=>`- ${p.name}（進捗${p.pct}%・${p.st==="hold"?"保留":"進行中"}）`).join("\n")}
+${projects.map(p=>`- ${p.name}（進捗${p.pct}%・${ST_LABEL[p.st]}）`).join("\n")}
 
 # 現在の今日のタスク案
 ${tasks.slice(0,3).map((t,i)=>`${i+1}. ${t.text}${t.done?"（完了済み）":""}`).join("\n")}
