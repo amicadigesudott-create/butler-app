@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Butler">
+<meta name="theme-color" content="#FAF7F0">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<title>Butler — 今日はこれだけ</title>
+<style>
+  :root{
+    --ivory:#FAF7F0;
+    --beige:#EFE8DA;
+    --beige-deep:#E3D9C6;
+    --green:#2E4A3D;
+    --green-soft:#4C6B5C;
+    --text:#3A3A34;
+    --text-sub:#8A8578;
+    --card:#FFFFFF;
+    --radius:18px;
+    --shadow:0 1px 3px rgba(46,74,61,.06), 0 4px 16px rgba(46,74,61,.05);
+  }
+  body.night{
+    --ivory:#1E2622;
+    --beige:#27322C;
+    --beige-deep:#314038;
+    --green:#C9D8CE;
+    --green-soft:#9FB5A8;
+    --text:#E8E5DC;
+    --text-sub:#9BA69E;
+    --card:#27322C;
+    --shadow:0 1px 3px rgba(0,0,0,.25);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html{font-size:16px}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI",sans-serif;
+    background:var(--ivory);
+    color:var(--text);
+    line-height:1.6;
+    transition:background .5s,color .5s;
+    padding:max(env(safe-area-inset-top),16px) 16px max(env(safe-area-inset-bottom),24px);
+    max-width:540px;margin:0 auto;
+  }
+  @media(min-width:768px){ /* iPad */
+    body{max-width:920px}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  }
+
+  /* ---------- ヘッダー ---------- */
+  header{display:flex;align-items:center;gap:14px;padding:10px 4px 18px}
+  .avatar{width:56px;height:56px;flex:none}
+  .h-date{font-size:.8rem;color:var(--text-sub);letter-spacing:.04em}
+  .h-greet{font-size:1.05rem;font-weight:600;color:var(--green)}
+  .mode-btn{
+    margin-left:auto;border:none;background:var(--beige);color:var(--green);
+    border-radius:999px;padding:8px 14px;font-size:.8rem;cursor:pointer;font-family:inherit;
+  }
+
+  /* ---------- カード共通 ---------- */
+  .card{
+    background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:18px 18px;margin-bottom:14px;
+  }
+  .card h2{
+    font-size:.8rem;font-weight:600;color:var(--text-sub);
+    letter-spacing:.12em;margin-bottom:12px;display:flex;align-items:center;gap:8px;
+  }
+  .card h2 .emoji{font-size:1rem}
+
+  /* ---------- 執事の一言 ---------- */
+  .butler-msg{
+    background:var(--green);color:#F5F2E9;border-radius:var(--radius);
+    padding:18px 20px;margin-bottom:14px;font-size:.95rem;box-shadow:var(--shadow);
+  }
+  body.night .butler-msg{background:#3A5247;color:#EDEAE0}
+  .butler-msg .label{font-size:.7rem;opacity:.7;letter-spacing:.15em;margin-bottom:6px}
+
+  /* ---------- 今日のタスク ---------- */
+  .task{
+    display:flex;align-items:center;gap:12px;padding:12px 4px;
+    border-bottom:1px solid var(--beige);cursor:pointer;user-select:none;
+  }
+  .task:last-of-type{border-bottom:none}
+  .task .num{
+    width:26px;height:26px;flex:none;border-radius:50%;
+    background:var(--beige);color:var(--green);font-size:.8rem;font-weight:700;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .task.done .num{background:var(--green);color:#fff}
+  .task .t-text{flex:1;font-size:1rem}
+  .task.done .t-text{text-decoration:line-through;color:var(--text-sub)}
+  .task .check{
+    width:24px;height:24px;flex:none;border-radius:50%;
+    border:2px solid var(--beige-deep);display:flex;align-items:center;justify-content:center;
+    font-size:.75rem;color:transparent;transition:all .2s;
+  }
+  .task.done .check{background:var(--green);border-color:var(--green);color:#fff}
+  .hint{font-size:.72rem;color:var(--text-sub);margin-top:8px;text-align:right}
+
+  /* ---------- やらないこと ---------- */
+  .skip-card{background:var(--beige)}
+  .skip-item{display:flex;gap:10px;align-items:baseline;padding:5px 0;font-size:.92rem;color:var(--text)}
+  .skip-item::before{content:"—";color:var(--text-sub);flex:none}
+  .skip-note{font-size:.75rem;color:var(--text-sub);margin-top:8px}
+
+  /* ---------- 折りたたみ ---------- */
+  details.card{padding:0;overflow:hidden}
+  details.card summary{
+    list-style:none;padding:16px 18px;cursor:pointer;
+    font-size:.8rem;font-weight:600;color:var(--text-sub);letter-spacing:.12em;
+    display:flex;align-items:center;gap:8px;
+  }
+  details.card summary::-webkit-details-marker{display:none}
+  details.card summary .emoji{font-size:1rem}
+  details.card summary::after{content:"›";margin-left:auto;color:var(--text-sub);transform:rotate(90deg);transition:transform .2s;font-size:1.1rem}
+  details.card[open] summary::after{transform:rotate(-90deg)}
+  details.card .body{padding:0 18px 18px}
+
+  /* ---------- プロジェクト進捗 ---------- */
+  .proj{padding:9px 0;border-bottom:1px solid var(--beige)}
+  .proj:last-child{border-bottom:none}
+  .proj-top{display:flex;align-items:center;gap:8px;font-size:.9rem}
+  .badge{font-size:.65rem;padding:2px 9px;border-radius:999px;flex:none;margin-left:auto}
+  .badge.active{background:#E3EDE6;color:var(--green)}
+  .badge.hold{background:var(--beige);color:var(--text-sub)}
+  .badge.done{background:var(--green);color:#fff}
+  body.night .badge.active{background:#3A5247;color:#D7E3DA}
+  .bar{height:5px;border-radius:99px;background:var(--beige);margin-top:7px;overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:99px;background:var(--green-soft)}
+
+  /* ---------- 健康 ---------- */
+  .health-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .h-item{background:var(--ivory);border-radius:14px;padding:12px 8px;text-align:center}
+  .h-item .v{font-size:1.05rem;font-weight:700;color:var(--green)}
+  .h-item .k{font-size:.68rem;color:var(--text-sub)}
+  .week-banner{
+    grid-column:1/-1;background:var(--beige);border-radius:14px;
+    padding:12px;text-align:center;font-size:.9rem;color:var(--green);font-weight:600;
+  }
+
+  /* ---------- レシピ ---------- */
+  .recipe-name{font-size:1.05rem;font-weight:700;color:var(--green);margin-bottom:6px}
+  .tagrow{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .tag{font-size:.7rem;background:var(--beige);color:var(--green);padding:3px 10px;border-radius:999px}
+  .recipe-link{
+    display:inline-block;margin-top:8px;font-size:.82rem;color:var(--green);
+    text-decoration:none;border-bottom:1px solid var(--green-soft);
+  }
+
+  /* ---------- ニュース ---------- */
+  .news{padding:10px 0;border-bottom:1px solid var(--beige)}
+  .news:last-child{border-bottom:none}
+  .news .cat{font-size:.65rem;color:var(--green);background:var(--beige);padding:2px 9px;border-radius:999px}
+  .news h3{font-size:.92rem;margin:6px 0 3px;font-weight:600}
+  .news p{font-size:.82rem;color:var(--text-sub)}
+
+  /* ---------- 案件レーダー ---------- */
+  .job{padding:10px 0;border-bottom:1px solid var(--beige)}
+  .job:last-child{border-bottom:none}
+  .job h3{font-size:.92rem;font-weight:600}
+  .job .meta{font-size:.78rem;color:var(--text-sub);margin-top:2px}
+  .job .new{font-size:.62rem;background:var(--green);color:#fff;border-radius:999px;padding:2px 8px;margin-right:6px;vertical-align:1px}
+
+  /* ---------- 夜モード ---------- */
+  #nightPanel{display:none}
+  body.night #nightPanel{display:block}
+  body.night #dayPanel{display:none}
+  .rate-wrap{text-align:center;padding:6px 0 14px}
+  .rate{font-size:3rem;font-weight:800;color:var(--green);line-height:1.1}
+  .rate-label{font-size:.78rem;color:var(--text-sub)}
+  .done-list{margin:6px 0 4px}
+  .done-list .d{display:flex;gap:10px;align-items:baseline;padding:4px 0;font-size:.92rem}
+  .done-list .d::before{content:"✓";color:var(--green);font-weight:700;flex:none}
+  .done-list .d.undone::before{content:"○";color:var(--text-sub);font-weight:400}
+  .done-list .d.undone{color:var(--text-sub)}
+  .close-msg{
+    margin-top:10px;padding:14px;border-radius:14px;background:var(--beige);
+    font-size:.9rem;color:var(--text);text-align:center;
+  }
+  footer{text-align:center;font-size:.7rem;color:var(--text-sub);padding:18px 0 4px}
+
+  /* ---------- すり合わせ・AI ---------- */
+  .align-row{display:flex;gap:8px}
+  .align-row input{
+    flex:1;border:1px solid var(--beige-deep);background:var(--ivory);border-radius:12px;
+    padding:10px 12px;font-family:inherit;font-size:.9rem;color:var(--text);min-width:0;
+  }
+  .btn{
+    border:none;border-radius:12px;background:var(--green);color:#F5F2E9;
+    padding:10px 16px;font-family:inherit;font-size:.85rem;cursor:pointer;flex:none;
+  }
+  body.night .btn{color:#1E2622}
+  .btn:disabled{opacity:.5}
+  .btn.sub{background:var(--beige);color:var(--green)}
+  .ai-out{
+    margin-top:12px;font-size:.88rem;background:var(--ivory);border-radius:12px;
+    padding:12px;white-space:pre-wrap;display:none;
+  }
+  .ai-note{font-size:.75rem;color:var(--text-sub);margin-top:8px}
+  textarea.paste{
+    width:100%;border:1px solid var(--beige-deep);background:var(--ivory);border-radius:12px;
+    padding:10px 12px;font-family:inherit;font-size:.85rem;color:var(--text);
+    min-height:80px;resize:vertical;margin-top:10px;
+  }
+  .fit-line{font-size:.85rem;font-weight:600;color:var(--green);margin-top:10px}
+
+  /* ---------- 設定シート ---------- */
+  .overlay{position:fixed;inset:0;background:rgba(40,50,44,.45);display:none;align-items:flex-end;justify-content:center;z-index:50}
+  .overlay.open{display:flex}
+  .sheet{
+    background:var(--card);width:100%;max-width:540px;border-radius:22px 22px 0 0;
+    padding:22px 20px 36px;max-height:88vh;overflow:auto;
+  }
+  .sheet h2{font-size:1rem;color:var(--green);margin-bottom:4px}
+  .sheet .sub-note{font-size:.75rem;color:var(--text-sub)}
+  .sheet label{display:block;font-size:.75rem;color:var(--text-sub);margin:14px 0 4px}
+  .sheet input,.sheet textarea{
+    width:100%;border:1px solid var(--beige-deep);background:var(--ivory);border-radius:10px;
+    padding:9px 11px;font-family:inherit;font-size:.88rem;color:var(--text);
+  }
+  .sheet textarea{min-height:64px;resize:vertical}
+  .sheet .btn{width:100%;margin-top:18px;padding:12px}
+  #toast{
+    position:fixed;left:50%;bottom:30px;transform:translateX(-50%);
+    background:var(--green);color:#fff;padding:9px 18px;border-radius:999px;
+    font-size:.8rem;opacity:0;transition:opacity .3s;pointer-events:none;z-index:60;white-space:nowrap;
+  }
+  #toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <svg class="avatar" viewBox="0 0 64 64" aria-hidden="true">
+    <circle cx="32" cy="32" r="30" fill="#EFE8DA"/>
+    <circle cx="32" cy="26" r="11" fill="#F6EFE3" stroke="#2E4A3D" stroke-width="1.6"/>
+    <path d="M20 27 Q21 15 32 15 Q43 15 44 27 Q42 21 32 21 Q22 21 20 27Z" fill="#2E4A3D"/>
+    <circle cx="28" cy="26.5" r="1.2" fill="#2E4A3D"/>
+    <circle cx="36" cy="26.5" r="1.2" fill="#2E4A3D"/>
+    <path d="M29.5 31 Q32 32.8 34.5 31" stroke="#2E4A3D" stroke-width="1.3" fill="none" stroke-linecap="round"/>
+    <path d="M19 50 Q22 38 32 38 Q42 38 45 50Z" fill="#2E4A3D"/>
+    <path d="M32 38 L29 44 L32 50 L35 44Z" fill="#F6EFE3"/>
+    <path d="M32 40.5 L29.5 38.5 L34.5 38.5Z" fill="#7A604A"/>
+  </svg>
+  <div>
+    <div class="h-date" id="dateLine"></div>
+    <div class="h-greet" id="greetLine"></div>
+  </div>
+  <button class="mode-btn" id="modeBtn" type="button">🌙 夜</button>
+  <button class="mode-btn" id="settingsBtn" type="button" style="margin-left:8px">⚙</button>
+</header>
+
+<div class="butler-msg">
+  <div class="label">執事からの一言</div>
+  <div id="butlerMsg"></div>
+</div>
+
+<!-- ===================== 昼パネル ===================== -->
+<div id="dayPanel">
+
+  <section class="card">
+    <h2><span class="emoji">🤝</span>執事とすり合わせ</h2>
+    <div class="align-row">
+      <input id="myPriority" type="text" placeholder="あなたが今日いちばん優先したいことは？">
+      <button class="btn" id="alignBtn" type="button">相談する</button>
+    </div>
+    <div class="ai-out" id="alignOut"></div>
+    <div class="ai-note" id="alignNote">あなたの「最優先」と執事の優先順位ルールをすり合わせて、今日の3件を組み直します。</div>
+  </section>
+
+  <section class="card">
+    <h2><span class="emoji">☀️</span>今日の最重要タスク（3件だけ）</h2>
+    <div id="taskList"></div>
+    <div class="hint">タップで完了 ／ 長押しで内容を編集</div>
+  </section>
+
+  <section class="card skip-card">
+    <h2><span class="emoji">🍃</span>今日は やらないこと</h2>
+    <div id="skipList"></div>
+    <div class="skip-note">※ どれも「今日やらなくても困らない」と執事が判断しました</div>
+  </section>
+
+  <div class="grid2">
+  <details class="card hide-night">
+    <summary><span class="emoji">📂</span>プロジェクト進捗</summary>
+    <div class="body" id="projList"></div>
+  </details>
+
+  <details class="card hide-night">
+    <summary><span class="emoji">🌿</span>健康管理</summary>
+    <div class="body">
+      <div class="health-grid">
+        <div class="week-banner" id="weekBanner">出産予定日を設定すると妊娠週数を表示します　<input type="date" id="dueDate" style="font-family:inherit"></div>
+        <div class="h-item"><div class="v">4,280</div><div class="k">歩数</div></div>
+        <div class="h-item"><div class="v">20分</div><div class="k">運動</div></div>
+        <div class="h-item"><div class="v">1.2L</div><div class="k">水分</div></div>
+        <div class="h-item"><div class="v">7.0h</div><div class="k">睡眠</div></div>
+        <div class="h-item"><div class="v">良好</div><div class="k">体調メモ</div></div>
+        <div class="h-item"><div class="v">−</div><div class="k">血圧</div></div>
+      </div>
+    </div>
+  </details>
+
+  <details class="card hide-night">
+    <summary><span class="emoji">🍳</span>今日のおすすめレシピ</summary>
+    <div class="body" id="recipeBox"></div>
+  </details>
+
+  <details class="card hide-night">
+    <summary><span class="emoji">📰</span>今日のニュース</summary>
+    <div class="body" id="newsBox"></div>
+  </details>
+
+  <details class="card hide-night">
+    <summary><span class="emoji">📡</span>新着案件レーダー</summary>
+    <div class="body">
+      <div id="jobBox"></div>
+      <textarea class="paste" id="jobPaste" placeholder="気になる案件の募集文をここに貼り付けると、執事が相性チェックと営業文の下書きを作ります（クラウドワークス・ココナラ等の文面をそのままでOK）"></textarea>
+      <button class="btn sub" id="jobPasteBtn" type="button" style="margin-top:8px">✉️ この案件の営業文を作る</button>
+      <div class="fit-line" id="fitLine" style="display:none"></div>
+      <div class="ai-out" id="salesOut"></div>
+      <button class="btn sub" id="salesCopyBtn" type="button" style="margin-top:8px;display:none">📋 営業文をコピー</button>
+    </div>
+  </details>
+  </div>
+</div>
+
+<!-- ===================== 夜パネル ===================== -->
+<div id="nightPanel">
+  <section class="card">
+    <h2><span class="emoji">🌙</span>今日の完了率</h2>
+    <div class="rate-wrap">
+      <div class="rate" id="rateNum">0%</div>
+      <div class="rate-label">今日の最重要タスク</div>
+    </div>
+    <div class="done-list" id="doneList"></div>
+  </section>
+  <section class="card">
+    <h2><span class="emoji">🤵</span>執事からの総評</h2>
+    <div id="nightReview" style="font-size:.95rem"></div>
+    <div class="close-msg" id="closeMsg"></div>
+  </section>
+</div>
+
+<!-- ===================== 設定シート ===================== -->
+<div class="overlay" id="settingsOverlay">
+  <div class="sheet">
+    <h2>⚙ 設定</h2>
+    <div class="sub-note">この情報は執事の判断材料になります。すべて端末内（localStorage）にのみ保存されます。</div>
+
+    <label>Gemini APIキー</label>
+    <input type="password" id="setKey" placeholder="AIzaSy...">
+
+    <label>名乗り・肩書き（営業文の冒頭に使います）</label>
+    <input type="text" id="setIntro" placeholder="例）ナレーション・動画編集を承っております、〇〇と申します">
+
+    <label>強み・実績（具体的に。営業文の根拠になります）</label>
+    <textarea id="setStrengths" placeholder="例）落ち着いた女性声のナレーション／育児・ママ向けジャンルが得意／ショート動画は企画〜編集まで一貫対応 など"></textarea>
+
+    <label>希望単価・稼働条件</label>
+    <textarea id="setTerms" placeholder="例）ナレーション1本〇〇円〜／在宅・宅録対応／平日〇時間稼働／無理のない納期を希望 など"></textarea>
+
+    <label>ポートフォリオ・サンプルURL</label>
+    <input type="text" id="setPortfolio" placeholder="例）ボイスサンプルや制作実績のURL">
+
+    <button class="btn" id="setSaveBtn" type="button">保存する</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<footer>Butler — タスクを増やさない、あなたの執事。</footer>
+
+<script>
+"use strict";
+/* ====== データ（プロトタイプ用サンプル。将来はAI・外部連携で自動生成） ====== */
+const DEFAULT_TASKS = [
+  "ナレーション案件に2件応募する",       // 1. 収入直結
+  "ボイスサンプルを1本収録する",         // 1. 収入直結
+  "少年ママアカウントに1投稿する",       // 2. 将来の収益化
+];
+
+const PROJECTS = [
+  {name:"ナレーション案件獲得", pct:40, st:"active"},
+  {name:"動画編集案件獲得",     pct:25, st:"active"},
+  {name:"ショート動画制作",     pct:60, st:"active"},
+  {name:"SNS運用代行",          pct:10, st:"hold"},
+  {name:"少年ママアカウント",   pct:55, st:"active"},
+  {name:"育児系アカウント再運用",pct:5,  st:"hold"},
+  {name:"絵本制作",             pct:30, st:"active"},
+  {name:"絵本クラファン準備",   pct:15, st:"hold"},
+  {name:"出産準備",             pct:50, st:"active"},
+];
+
+const RECIPES = [
+  {name:"鮭と小松菜の混ぜごはん", nut:["葉酸","鉄分","たんぱく質"], time:"15分",
+   memo:"焼き鮭をほぐして混ぜるだけ。小松菜は冷凍でもOK。子どもはおにぎりにすると食べやすい。"},
+  {name:"豆腐と卵のとろとろ丼", nut:["たんぱく質","カルシウム"], time:"10分",
+   memo:"材料3つ。やさしい味で体調が不安な日にも。"},
+  {name:"鶏ひき肉と根菜の煮物", nut:["鉄分","食物繊維","たんぱく質"], time:"20分",
+   memo:"まとめて作って翌日にも。子どもには小さく刻んで取り分け。"},
+];
+
+const NEWS = [
+  {cat:"AI", title:"動画系AIツールの新機能が続々", body:"ショート動画の編集支援機能が各社から発表。今すぐ乗り換える必要はなく、案件で必要になったら触れば十分です。"},
+  {cat:"フリーランス", title:"フリーランス新法の周知が進む", body:"発注側の書面交付が義務化され、契約条件が明確になりやすい流れ。受注側には追い風です。"},
+  {cat:"SNS運用", title:"ショート動画の平均視聴時間が増加", body:"短尺より「最後まで見られる構成」が評価される傾向。今の制作方針のままで問題ありません。"},
+  {cat:"絵本業界", title:"絵本のクラファン成功事例が増加", body:"少部数でも支援が集まりやすいジャンルとして注目。準備は焦らず、制作を優先で大丈夫です。"},
+];
+
+const JOBS = [
+  {title:"ショート動画 編集＋テロップ入れ（TikTok/リール 月10本）", meta:"月50,000円 ／ 継続案件 ／ 素材支給", isNew:true},
+  {title:"育児系ショート動画 編集（月8本）", meta:"月40,000円 ／ 継続案件 ／ テンプレあり", isNew:true},
+  {title:"企業VPナレーション（女性・落ち着いた声）", meta:"〜30,000円 ／ 宅録OK ／ 納期1週間", isNew:true},
+  {title:"絵本読み聞かせ音声の収録", meta:"〜15,000円 ／ 宅録OK", isNew:true},
+  {title:"ママ向けInstagram運用代行", meta:"月30,000円 ／ 週3投稿", isNew:false},
+];
+
+const DEFAULT_SKIP = ["新しいAIツールの調査", "SNSの分析・数字チェック", "新規企画の立案"];
+
+/* ====== 状態 ====== */
+const store = {
+  get tasks(){ try{ return JSON.parse(localStorage.getItem("butler.tasks")) || null }catch(e){ return null } },
+  set tasks(v){ localStorage.setItem("butler.tasks", JSON.stringify(v)) },
+  get due(){ return localStorage.getItem("butler.due") || "" },
+  set due(v){ localStorage.setItem("butler.due", v) },
+  get key(){ return localStorage.getItem("butler.geminiKey") || "" },
+  set key(v){ localStorage.setItem("butler.geminiKey", v) },
+  get skip(){ try{ return JSON.parse(localStorage.getItem("butler.skip")) || null }catch(e){ return null } },
+  set skip(v){ localStorage.setItem("butler.skip", JSON.stringify(v)) },
+  get profile(){ try{ return JSON.parse(localStorage.getItem("butler.profile")) || {} }catch(e){ return {} } },
+  set profile(v){ localStorage.setItem("butler.profile", JSON.stringify(v)) },
+};
+let tasks = store.tasks || DEFAULT_TASKS.map(t => ({text:t, done:false}));
+let skipItems = store.skip || DEFAULT_SKIP.slice();
+
+/* ====== ヘッダー・執事の一言 ====== */
+const now = new Date();
+const youbi = ["日","月","火","水","木","金","土"][now.getDay()];
+document.getElementById("dateLine").textContent =
+  `${now.getFullYear()}年${now.getMonth()+1}月${now.getDate()}日（${youbi}）`;
+
+function isNightHour(){ const h = new Date().getHours(); return h >= 20 || h < 4; }
+
+function butlerMorningMsg(){
+  const h = now.getHours();
+  if (h < 11)  return "おはようございます。今日もタスクは3つだけご用意しました。体調を最優先に、できるところから参りましょう。";
+  if (h < 17)  return "こんにちは。焦らなくて大丈夫です。下の3つのうち、1つ進めば今日は合格です。";
+  return "おつかれさまです。残りの時間は無理のない範囲で。終わらない分は、わたしが明日に回しておきます。";
+}
+document.getElementById("greetLine").textContent = "おかえりなさいませ、Emi様";
+document.getElementById("butlerMsg").textContent = butlerMorningMsg();
+
+/* ====== タスク描画 ====== */
+function renderTasks(){
+  const wrap = document.getElementById("taskList");
+  wrap.innerHTML = "";
+  tasks.slice(0,3).forEach((t,i)=>{   // 表示は最大3件
+    const row = document.createElement("div");
+    row.className = "task" + (t.done ? " done":"");
+    row.innerHTML = `<span class="num">${i+1}</span><span class="t-text"></span><span class="check">✓</span>`;
+    row.querySelector(".t-text").textContent = t.text;
+
+    /* 長押し編集が発火した直後の click は無効化する */
+    let longPressed = false;
+    row.addEventListener("click", ()=>{
+      if (longPressed) { longPressed = false; return; }
+      t.done = !t.done; store.tasks = tasks; renderTasks(); renderNight();
+    });
+    /* 長押しで編集 */
+    let timer = null;
+    const start = ()=>{ timer = setTimeout(()=>{
+      timer = null; longPressed = true;
+      const v = prompt("タスクを編集", t.text);
+      if (v && v.trim()) { t.text = v.trim(); store.tasks = tasks; renderTasks(); renderNight(); }
+    }, 600); };
+    const cancel = ()=>{ if (timer) clearTimeout(timer); };
+    row.addEventListener("touchstart", start, {passive:true});
+    row.addEventListener("touchend", cancel);
+    row.addEventListener("touchmove", cancel);
+    row.addEventListener("mousedown", start);
+    row.addEventListener("mouseup", cancel);
+    row.addEventListener("mouseleave", cancel);
+    wrap.appendChild(row);
+  });
+}
+
+/* ====== プロジェクト ====== */
+function renderProjects(){
+  const box = document.getElementById("projList");
+  const label = {active:"進行中", hold:"保留", done:"完了"};
+  box.innerHTML = PROJECTS.map(p=>`
+    <div class="proj">
+      <div class="proj-top">${p.name}
+        <span class="badge ${p.st}">${label[p.st]}</span></div>
+      <div class="bar"><i style="width:${p.pct}%"></i></div>
+    </div>`).join("");
+}
+
+/* ====== 健康（妊娠週数） ====== */
+const dueInput = document.getElementById("dueDate");
+function renderWeek(){
+  const banner = document.getElementById("weekBanner");
+  if (!store.due) return;
+  const due = new Date(store.due + "T00:00:00");
+  const daysLeft = Math.round((due - new Date())/86400000);
+  const totalDays = 280 - daysLeft;            // 妊娠40週=280日
+  if (totalDays < 0 || totalDays > 320) return;
+  const w = Math.floor(totalDays/7), d = totalDays%7;
+  banner.innerHTML = `🤰 妊娠 ${w}週${d}日（予定日まで あと${Math.max(daysLeft,0)}日）`;
+}
+dueInput.value = store.due;
+dueInput.addEventListener("change", ()=>{ store.due = dueInput.value; renderWeek(); });
+
+/* ====== レシピ（日替わり） ====== */
+function renderRecipe(){
+  const r = RECIPES[ now.getDate() % RECIPES.length ];
+  document.getElementById("recipeBox").innerHTML = `
+    <div class="recipe-name">${r.name}</div>
+    <div class="tagrow">${r.nut.map(n=>`<span class="tag">${n}</span>`).join("")}<span class="tag">⏱ ${r.time}</span><span class="tag">子どもOK</span></div>
+    <div style="font-size:.85rem;color:var(--text-sub)">${r.memo}</div>
+    <a class="recipe-link" href="https://www.instagram.com/explore/tags/%E5%A6%8A%E5%A8%A0%E4%B8%AD%E3%83%AC%E3%82%B7%E3%83%94/" target="_blank" rel="noopener">▶ 1〜2分で工程を動画で見る</a>`;
+}
+
+/* ====== やらないこと ====== */
+function renderSkip(){
+  const box = document.getElementById("skipList");
+  box.innerHTML = "";
+  skipItems.slice(0,3).forEach(s=>{
+    const d = document.createElement("div");
+    d.className = "skip-item"; d.textContent = s;
+    box.appendChild(d);
+  });
+}
+
+/* ====== ニュース・案件 ====== */
+function renderNews(){
+  document.getElementById("newsBox").innerHTML = NEWS.map(n=>`
+    <div class="news"><span class="cat">${n.cat}</span><h3>${n.title}</h3><p>${n.body}</p></div>`).join("");
+}
+function renderJobs(){
+  const box = document.getElementById("jobBox");
+  box.innerHTML = "";
+  JOBS.slice(0,5).forEach(j=>{
+    const d = document.createElement("div");
+    d.className = "job";
+    d.innerHTML = `<h3>${j.isNew?'<span class="new">NEW</span>':''}</h3><div class="meta"></div>
+      <button class="btn sub" type="button" style="margin-top:6px;padding:6px 12px;font-size:.78rem">✉️ 営業文を作る</button>`;
+    d.querySelector("h3").append(j.title);
+    d.querySelector(".meta").textContent = j.meta;
+    d.querySelector("button").addEventListener("click", ()=> makeSales(`${j.title}\n条件: ${j.meta}`));
+    box.appendChild(d);
+  });
+}
+
+/* ====== 夜モード ====== */
+function renderNight(){
+  const total = Math.min(tasks.length,3);
+  const done  = tasks.slice(0,3).filter(t=>t.done).length;
+  const rate  = total ? Math.round(done/total*100) : 0;
+  document.getElementById("rateNum").textContent = rate + "%";
+  const dl = document.getElementById("doneList");
+  dl.innerHTML = "";
+  tasks.slice(0,3).forEach(t=>{
+    const d = document.createElement("div");
+    d.className = "d" + (t.done ? "" : " undone");
+    d.textContent = t.text;
+    d.style.cursor = "pointer";
+    d.addEventListener("click", ()=>{   // 夜の「できたことチェック」
+      t.done = !t.done; store.tasks = tasks; renderTasks(); renderNight();
+    });
+    dl.appendChild(d);
+  });
+
+  const review = document.getElementById("nightReview");
+  const close  = document.getElementById("closeMsg");
+  if (rate >= 100){
+    review.textContent = "本日はすべてのタスクを終えられました。お見事でございます。これ以上は何もなさらなくて結構です。";
+  } else if (rate >= 60){
+    review.textContent = "本日は十分な進捗です。残りのタスクは、わたしが責任を持って明日のリストに回しておきます。";
+  } else if (rate > 0){
+    review.textContent = "1つでも進んだ日は、前に進んだ日です。妊娠中の今は、それで十分でございます。残りは明日に回しましょう。";
+  } else {
+    review.textContent = "今日は手が回らない日もございます。体を休めることも、立派な「今日やるべきこと」のひとつです。";
+  }
+  close.textContent = "🌙 本日はここまで。スマホを閉じて、ゆっくりお休みください。";
+}
+
+/* ====== Gemini API（buzzrと同方式） ====== */
+const GEMINI_MODEL = "gemini-2.5-flash-lite";
+
+async function callGemini(prompt){
+  if (!store.key) throw new Error("NOKEY");
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${store.key}`,
+    {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({
+        contents:[{ parts:[{ text: prompt }] }],
+        generationConfig:{ maxOutputTokens: 2048, temperature: 0.7 }
+      })
+    }
+  );
+  if (!res.ok){
+    const err = await res.json().catch(()=>({}));
+    const msg = err.error?.message || "";
+    if (res.status === 429 || /quota/i.test(msg)) throw new Error("⏳ 利用制限中です。1〜2分おいて再試行してください。");
+    if (res.status === 400 && msg.includes("API key")) throw new Error("🔑 APIキーが無効です。⚙設定を確認してください。");
+    throw new Error("APIエラー(" + res.status + ")");
+  }
+  const data = await res.json();
+  return data.candidates[0].content.parts[0].text;
+}
+
+function parseJsonLoose(text){
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  let t = (codeBlock ? codeBlock[1] : text).trim();
+  try { return JSON.parse(t); } catch(e){}
+  const brace = t.match(/\{[\s\S]*\}/);
+  if (brace) return JSON.parse(brace[0]);
+  throw new Error("応答の解析に失敗しました");
+}
+
+function toast(msg){
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.classList.add("show");
+  setTimeout(()=> el.classList.remove("show"), 2600);
+}
+
+function profileText(){
+  const p = store.profile;
+  return [
+    p.intro     ? "名乗り: " + p.intro : "",
+    p.strengths ? "強み・実績: " + p.strengths : "",
+    p.terms     ? "希望単価・条件: " + p.terms : "",
+    p.portfolio ? "ポートフォリオ: " + p.portfolio : "",
+    "状況: 妊娠中・子育て中のフリーランス。在宅・宅録ベースで稼働。",
+  ].filter(Boolean).join("\n");
+}
+
+function needKey(){
+  toast("⚙ 設定でGemini APIキーを入れると執事が動きます");
+  openSettings();
+}
+
+/* ====== すり合わせ ====== */
+async function doAlign(){
+  const input = document.getElementById("myPriority").value.trim();
+  if (!input){ toast("今日の最優先を一言で教えてください"); return; }
+  if (!store.key){ needKey(); return; }
+
+  const btn = document.getElementById("alignBtn");
+  const out = document.getElementById("alignOut");
+  btn.disabled = true; btn.textContent = "思案中…";
+
+  const prompt = `あなたは「Butler」という執事AIです。ユーザー（Emi様）の認知負荷を下げることが最優先の役割です。
+
+# 絶対ルール
+- 今日のタスクは最大3件。絶対に増やさない。
+- 不安を煽る表現は禁止。落ち着いた、温かい執事の口調で。
+- ユーザーの判断を尊重する。頭ごなしに否定しない。
+
+# ユーザー情報
+${profileText()}
+頑張りすぎる傾向があるため、詰め込みは禁止。
+
+# AIの優先順位ルール
+1. 収入に直結する行動（案件応募・営業・収録・納品）
+2. 将来の収益化につながる行動（ポートフォリオ整備・SNS投稿）
+3. 創作活動（絵本制作）
+4. 情報収集（最下位）
+
+# 進行中プロジェクト
+${PROJECTS.map(p=>`- ${p.name}（進捗${p.pct}%・${p.st==="hold"?"保留":"進行中"}）`).join("\n")}
+
+# 現在の今日のタスク案
+${tasks.slice(0,3).map((t,i)=>`${i+1}. ${t.text}${t.done?"（完了済み）":""}`).join("\n")}
+
+# ユーザーが今日最優先だと思っていること
+「${input}」
+
+# 依頼
+ユーザーの最優先とAIの優先順位ルールをすり合わせて、今日のタスクを3件に組み直してください。
+- ユーザーの最優先は原則1番に入れる。ただし優先順位ルール上もっと良い順序があれば、commentで穏やかに理由を伝える
+- タスクは「今日中に終わる具体的な行動」の粒度で書く（各30文字以内）
+- commentは2〜3文。すり合わせの結論と、ねぎらいをひとつ
+- notTodayは今日やらなくていいことを3件（情報収集系・急がないものから選ぶ）
+
+# 出力形式（このJSONのみを出力）
+{"comment":"", "tasks":["","",""], "notToday":["","",""]}`;
+
+  try {
+    const res = parseJsonLoose(await callGemini(prompt));
+    if (Array.isArray(res.tasks) && res.tasks.length){
+      tasks = res.tasks.slice(0,3).map(t=>({text:String(t).trim(), done:false}));
+      store.tasks = tasks; renderTasks(); renderNight();
+    }
+    if (Array.isArray(res.notToday) && res.notToday.length){
+      skipItems = res.notToday.slice(0,3).map(s=>String(s).trim());
+      store.skip = skipItems; renderSkip();
+    }
+    if (res.comment){
+      document.getElementById("butlerMsg").textContent = res.comment;
+      out.textContent = "🤵 " + res.comment;
+      out.style.display = "block";
+    }
+    toast("今日の3件を組み直しました");
+  } catch(e){
+    if (e.message === "NOKEY") { needKey(); }
+    else toast(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "相談する";
+  }
+}
+
+/* ====== 営業文の自動作成 ====== */
+let lastSalesText = "";
+async function makeSales(jobText){
+  if (!jobText || !jobText.trim()){ toast("案件の募集文を貼り付けてください"); return; }
+  if (!store.key){ needKey(); return; }
+  const p = store.profile;
+  if (!p.intro && !p.strengths){ toast("先に⚙設定でプロフィールを入力すると精度が上がります"); }
+
+  const btn = document.getElementById("jobPasteBtn");
+  const out = document.getElementById("salesOut");
+  const fit = document.getElementById("fitLine");
+  const copyBtn = document.getElementById("salesCopyBtn");
+  btn.disabled = true; btn.textContent = "✉️ 作成中…";
+  fit.style.display = "none"; out.style.display = "none"; copyBtn.style.display = "none";
+  document.querySelector("#jobPaste").scrollIntoView({behavior:"smooth", block:"center"});
+
+  const prompt = `あなたはクラウドソーシングでの受注率が高い、フリーランス向け営業文のプロです。
+
+# 応募者プロフィール
+${profileText()}
+
+# 案件内容
+${jobText}
+
+# 依頼
+1) この案件と応募者の相性を ◎ / ○ / △ で判定し、理由を1文で。
+2) この案件への応募メッセージ（営業文）を1通作成。
+
+# 営業文の条件
+- 300〜450字
+- 構成: 挨拶と名乗り → 案件内容への理解（募集文の言葉を1つ以上拾って具体的に）→ 提供できる価値・実績 → 納期・対応条件 → 締め
+- プロフィールにある情報のみ使う。誇張・嘘の実績は書かない
+- プロフィールに単価やURLが無い場合、その項目には触れない（「〇〇」などの穴埋めを残さない）
+- 定型文っぽさを避ける。絵文字は使わない
+- そのまま貼り付けられる完成文にする
+
+# 出力形式（このJSONのみを出力）
+{"fit":"◎", "reason":"", "message":""}`;
+
+  try {
+    const res = parseJsonLoose(await callGemini(prompt));
+    fit.textContent = `相性 ${res.fit || "○"}：${res.reason || ""}`;
+    fit.style.display = "block";
+    lastSalesText = (res.message || "").trim();
+    out.textContent = lastSalesText;
+    out.style.display = "block";
+    copyBtn.style.display = "inline-block";
+  } catch(e){
+    if (e.message === "NOKEY") { needKey(); }
+    else toast(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = "✉️ この案件の営業文を作る";
+  }
+}
+
+document.getElementById("alignBtn").addEventListener("click", doAlign);
+document.getElementById("myPriority").addEventListener("keydown", e=>{ if(e.key==="Enter") doAlign(); });
+document.getElementById("jobPasteBtn").addEventListener("click", ()=> makeSales(document.getElementById("jobPaste").value));
+document.getElementById("salesCopyBtn").addEventListener("click", ()=>{
+  navigator.clipboard.writeText(lastSalesText).then(()=>toast("営業文をコピーしました 📋"));
+});
+
+/* ====== 設定シート ====== */
+const ovl = document.getElementById("settingsOverlay");
+function openSettings(){
+  const p = store.profile;
+  document.getElementById("setKey").value       = store.key;
+  document.getElementById("setIntro").value     = p.intro || "";
+  document.getElementById("setStrengths").value = p.strengths || "";
+  document.getElementById("setTerms").value     = p.terms || "";
+  document.getElementById("setPortfolio").value = p.portfolio || "";
+  ovl.classList.add("open");
+}
+document.getElementById("settingsBtn").addEventListener("click", openSettings);
+ovl.addEventListener("click", e=>{ if (e.target === ovl) ovl.classList.remove("open"); });
+document.getElementById("setSaveBtn").addEventListener("click", ()=>{
+  store.key = document.getElementById("setKey").value.trim();
+  store.profile = {
+    intro:     document.getElementById("setIntro").value.trim(),
+    strengths: document.getElementById("setStrengths").value.trim(),
+    terms:     document.getElementById("setTerms").value.trim(),
+    portfolio: document.getElementById("setPortfolio").value.trim(),
+  };
+  ovl.classList.remove("open");
+  toast("保存しました。執事が賢くなりました 🤵");
+});
+
+/* ====== 昼夜切替 ====== */
+const modeBtn = document.getElementById("modeBtn");
+function applyMode(night){
+  document.body.classList.toggle("night", night);
+  modeBtn.textContent = night ? "☀️ 朝" : "🌙 夜";
+  document.getElementById("butlerMsg").textContent =
+    night ? "本日もおつかれさまでした。今日の振り返りをご用意しております。" : butlerMorningMsg();
+}
+modeBtn.addEventListener("click", ()=> applyMode(!document.body.classList.contains("night")));
+
+/* ====== 初期化 ====== */
+renderTasks(); renderSkip(); renderProjects(); renderWeek(); renderRecipe(); renderNews(); renderJobs(); renderNight();
+applyMode(isNightHour());   // 20時以降は自動で夜モード
+</script>
+</body>
+</html>
