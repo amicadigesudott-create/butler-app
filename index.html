@@ -133,15 +133,6 @@
   .bar{height:5px;border-radius:99px;background:var(--beige);margin-top:7px;overflow:hidden}
   .bar i{display:block;height:100%;border-radius:99px;background:var(--green-soft)}
 
-  /* ---------- レシピ ---------- */
-  .recipe-name{font-size:1.05rem;font-weight:700;color:var(--green);margin-bottom:6px}
-  .tagrow{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
-  .tag{font-size:.7rem;background:var(--beige);color:var(--green);padding:3px 10px;border-radius:999px}
-  .recipe-link{
-    display:inline-block;margin-top:8px;font-size:.82rem;color:var(--green);
-    text-decoration:none;border-bottom:1px solid var(--green-soft);
-  }
-
   /* ---------- ニュース ---------- */
   .news{padding:10px 0;border-bottom:1px solid var(--beige)}
   .news:last-child{border-bottom:none}
@@ -310,11 +301,6 @@
   </details>
 
   <details class="card hide-night">
-    <summary><span class="emoji">🍳</span>今日のおすすめレシピ</summary>
-    <div class="body" id="recipeBox"></div>
-  </details>
-
-  <details class="card hide-night">
     <summary><span class="emoji">📰</span>今日のニュース</summary>
     <div class="body" id="newsBox"></div>
   </details>
@@ -397,15 +383,6 @@ const PROJECTS = [
   {name:"絵本制作",             pct:30, st:"active"},
   {name:"絵本クラファン準備",   pct:15, st:"hold"},
   {name:"出産準備",             pct:50, st:"active"},
-];
-
-const RECIPES = [
-  {name:"鮭と小松菜の混ぜごはん", nut:["葉酸","鉄分","たんぱく質"], time:"15分",
-   memo:"焼き鮭をほぐして混ぜるだけ。小松菜は冷凍でもOK。子どもはおにぎりにすると食べやすい。"},
-  {name:"豆腐と卵のとろとろ丼", nut:["たんぱく質","カルシウム"], time:"10分",
-   memo:"材料3つ。やさしい味で体調が不安な日にも。"},
-  {name:"鶏ひき肉と根菜の煮物", nut:["鉄分","食物繊維","たんぱく質"], time:"20分",
-   memo:"まとめて作って翌日にも。子どもには小さく刻んで取り分け。"},
 ];
 
 const NEWS = [
@@ -500,16 +477,6 @@ function renderProjects(){
         <span class="badge ${p.st}">${label[p.st]}</span></div>
       <div class="bar"><i style="width:${p.pct}%"></i></div>
     </div>`).join("");
-}
-
-/* ====== レシピ（日替わり） ====== */
-function renderRecipe(){
-  const r = RECIPES[ now.getDate() % RECIPES.length ];
-  document.getElementById("recipeBox").innerHTML = `
-    <div class="recipe-name">${r.name}</div>
-    <div class="tagrow">${r.nut.map(n=>`<span class="tag">${n}</span>`).join("")}<span class="tag">⏱ ${r.time}</span><span class="tag">子どもOK</span></div>
-    <div style="font-size:.85rem;color:var(--text-sub)">${r.memo}</div>
-    <a class="recipe-link" href="https://www.instagram.com/explore/tags/%E5%A6%8A%E5%A8%A0%E4%B8%AD%E3%83%AC%E3%82%B7%E3%83%94/" target="_blank" rel="noopener">▶ 1〜2分で工程を動画で見る</a>`;
 }
 
 /* ====== やらないこと ====== */
@@ -832,7 +799,7 @@ function applyMode(night){
 modeBtn.addEventListener("click", ()=> applyMode(!document.body.classList.contains("night")));
 
 /* ====== 初期化 ====== */
-renderTasks(); renderSkip(); renderPrioPick(); renderProjects(); renderRecipe(); renderNews(); renderJobs(); renderNight();
+renderTasks(); renderSkip(); renderPrioPick(); renderProjects(); renderNews(); renderJobs(); renderNight();
 applyMode(isNightHour());   // 20時以降は自動で夜モード
 </script>
 </body>
