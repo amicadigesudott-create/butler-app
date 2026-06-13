@@ -740,12 +740,30 @@ function renderJobs(items){
       why.textContent = "🤵 " + j.why;
       d.appendChild(why);
     }
+    const btnRow = document.createElement("div");
+    btnRow.style.cssText = "display:flex;gap:8px;margin-top:6px;flex-wrap:wrap";
+
+    /* 案件名でのサイト内検索（リンク切れ時の確実なルート） */
+    const kw = String(j.title || "").replace(/[【】\[\]（）()「」!！?？・]/g, " ").replace(/\s+/g, " ").trim().slice(0, 30);
+    if (kw){
+      const search = document.createElement("a");
+      search.href = (j.source === "ランサーズ")
+        ? "https://www.lancers.jp/work/search?keyword=" + encodeURIComponent(kw)
+        : "https://crowdworks.jp/public/jobs/search?order=new&search%5Bkeywords%5D=" + encodeURIComponent(kw);
+      search.target = "_blank"; search.rel = "noopener";
+      search.className = "btn sub";
+      search.style.cssText = "padding:6px 12px;font-size:.78rem;text-decoration:none;display:inline-block";
+      search.textContent = "🔍 検索で探す";
+      btnRow.appendChild(search);
+    }
+
     const btn = document.createElement("button");
     btn.className = "btn sub"; btn.type = "button";
-    btn.style.cssText = "margin-top:6px;padding:6px 12px;font-size:.78rem";
+    btn.style.cssText = "padding:6px 12px;font-size:.78rem";
     btn.textContent = "✉️ 営業文を作る";
     btn.addEventListener("click", ()=> makeSales(`${j.title}\n掲載: ${j.source || ""}\n条件: ${j.meta || ""}`));
-    d.appendChild(btn);
+    btnRow.appendChild(btn);
+    d.appendChild(btnRow);
     box.appendChild(d);
   });
 
@@ -776,7 +794,7 @@ function renderJobs(items){
   refresh.addEventListener("click", ()=> loadJobs(true));
   const note = document.createElement("div");
   note.className = "ai-note";
-  note.textContent = "※ 案件名のリンク（↗付き）は検索で見つかった実ページに飛びます。リンクのない案件や募集終了のときは、上の公式検索からどうぞ。";
+  note.textContent = "※ 案件名のリンク（↗付き）は検索時点のページに飛びますが、募集が早く締め切られて「ページが見つかりません」になることがあります。その場合は「🔍 検索で探す」か上の公式検索からどうぞ。";
   box.append(quickTitle, quick, refresh, note);
 }
 
