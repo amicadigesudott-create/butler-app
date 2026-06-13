@@ -155,6 +155,8 @@
   .job{padding:10px 0;border-bottom:1px solid var(--beige)}
   .job:last-child{border-bottom:none}
   .job h3{font-size:.92rem;font-weight:600}
+  .job-title-copy{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+  .job-title-copy:active{opacity:.6}
   .job .meta{font-size:.78rem;color:var(--text-sub);margin-top:2px}
   .job .new{font-size:.62rem;background:var(--green);color:#fff;border-radius:999px;padding:2px 8px;margin-right:6px;vertical-align:1px}
 
@@ -718,20 +720,17 @@ function renderJobs(items){
     const h = document.createElement("h3");
     const badge = document.createElement("span"); badge.className = "new"; badge.textContent = "NEW";
     h.appendChild(badge);
-    /* リンクは検索が返した本物のURL（crowdworks/lancers直リンク or Google検索のリダイレクト）のみ */
-    if (j.url && /^https:\/\/((www\.)?(crowdworks\.jp|lancers\.jp)|vertexaisearch\.cloud\.google\.com)\//.test(j.url)){
-      const a = document.createElement("a");
-      a.href = j.url; a.target = "_blank"; a.rel = "noopener";
-      a.style.color = "inherit";
-      a.textContent = j.title;
-      h.appendChild(a);
-      const arrow = document.createElement("span");
-      arrow.style.cssText = "font-size:.7rem;color:var(--text-sub);margin-left:4px";
-      arrow.textContent = "↗";
-      h.appendChild(arrow);
-    } else {
-      h.append(j.title || "");
-    }
+    /* タイトルをタップするとコピー（自分で検索して探すため） */
+    const titleBtn = document.createElement("span");
+    titleBtn.className = "job-title-copy";
+    titleBtn.textContent = j.title || "";
+    titleBtn.addEventListener("click", ()=> copyText(j.title || "", "タイトルをコピーしました 📋"));
+    h.appendChild(titleBtn);
+    const tapHint = document.createElement("span");
+    tapHint.style.cssText = "font-size:.68rem;color:var(--text-sub);margin-left:4px;white-space:nowrap";
+    tapHint.textContent = "📋";
+    h.appendChild(tapHint);
+
     const meta = document.createElement("div"); meta.className = "meta";
     meta.textContent = [j.source, j.meta].filter(Boolean).join(" ／ ");
     d.append(h, meta);
@@ -743,19 +742,12 @@ function renderJobs(items){
     const btnRow = document.createElement("div");
     btnRow.style.cssText = "display:flex;gap:8px;margin-top:6px;flex-wrap:wrap";
 
-    /* 案件名でのサイト内検索（リンク切れ時の確実なルート） */
-    const kw = String(j.title || "").replace(/[【】\[\]（）()「」!！?？・]/g, " ").replace(/\s+/g, " ").trim().slice(0, 30);
-    if (kw){
-      const search = document.createElement("a");
-      search.href = (j.source === "ランサーズ")
-        ? "https://www.lancers.jp/work/search?keyword=" + encodeURIComponent(kw)
-        : "https://crowdworks.jp/public/jobs/search?order=new&search%5Bkeywords%5D=" + encodeURIComponent(kw);
-      search.target = "_blank"; search.rel = "noopener";
-      search.className = "btn sub";
-      search.style.cssText = "padding:6px 12px;font-size:.78rem;text-decoration:none;display:inline-block";
-      search.textContent = "🔍 検索で探す";
-      btnRow.appendChild(search);
-    }
+    const copyBtn = document.createElement("button");
+    copyBtn.className = "btn sub"; copyBtn.type = "button";
+    copyBtn.style.cssText = "padding:6px 12px;font-size:.78rem";
+    copyBtn.textContent = "📋 タイトルをコピー";
+    copyBtn.addEventListener("click", ()=> copyText(j.title || "", "タイトルをコピーしました 📋"));
+    btnRow.appendChild(copyBtn);
 
     const btn = document.createElement("button");
     btn.className = "btn sub"; btn.type = "button";
@@ -794,7 +786,7 @@ function renderJobs(items){
   refresh.addEventListener("click", ()=> loadJobs(true));
   const note = document.createElement("div");
   note.className = "ai-note";
-  note.textContent = "※ 案件名のリンク（↗付き）は検索時点のページに飛びますが、募集が早く締め切られて「ページが見つかりません」になることがあります。その場合は「🔍 検索で探す」か上の公式検索からどうぞ。";
+  note.textContent = "※ 案件名やボタンをタップするとタイトルをコピーできます。上の公式検索を開いて貼り付けると、その案件（または似た新着）を探せます。";
   box.append(quickTitle, quick, refresh, note);
 }
 
@@ -1013,6 +1005,26 @@ function toast(msg){
   const el = document.getElementById("toast");
   el.textContent = msg; el.classList.add("show");
   setTimeout(()=> el.classList.remove("show"), 2600);
+}
+
+/* クリップボードコピー（standalone PWAやhttpでも動くフォールバック付き） */
+function copyText(text, okMsg){
+  const done = ()=> toast(okMsg || "コピーしました 📋");
+  const fallback = ()=>{
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.cssText = "position:fixed;top:0;left:0;opacity:0";
+    document.body.appendChild(ta);
+    ta.focus(); ta.select();
+    try { document.execCommand("copy"); done(); }
+    catch(e){ toast("コピーできませんでした"); }
+    ta.remove();
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(fallback);
+  } else {
+    fallback();
+  }
 }
 
 function profileText(){
