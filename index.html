@@ -718,12 +718,17 @@ function renderJobs(items){
     const h = document.createElement("h3");
     const badge = document.createElement("span"); badge.className = "new"; badge.textContent = "NEW";
     h.appendChild(badge);
-    if (j.url && /^https?:\/\/(www\.)?(crowdworks\.jp|lancers\.jp)\//.test(j.url)){
+    /* リンクは検索が返した本物のURL（crowdworks/lancers直リンク or Google検索のリダイレクト）のみ */
+    if (j.url && /^https:\/\/((www\.)?(crowdworks\.jp|lancers\.jp)|vertexaisearch\.cloud\.google\.com)\//.test(j.url)){
       const a = document.createElement("a");
       a.href = j.url; a.target = "_blank"; a.rel = "noopener";
       a.style.color = "inherit";
       a.textContent = j.title;
       h.appendChild(a);
+      const arrow = document.createElement("span");
+      arrow.style.cssText = "font-size:.7rem;color:var(--text-sub);margin-left:4px";
+      arrow.textContent = "↗";
+      h.appendChild(arrow);
     } else {
       h.append(j.title || "");
     }
@@ -735,30 +740,35 @@ function renderJobs(items){
       why.textContent = "🤵 " + j.why;
       d.appendChild(why);
     }
-    const btnRow = document.createElement("div");
-    btnRow.style.cssText = "display:flex;gap:8px;margin-top:6px;flex-wrap:wrap";
-
-    /* クラウドワークスの案件はアプリ(Universal Link)で直接開ける */
-    const cw = (j.url || "").match(/crowdworks\.jp\/public\/jobs\/(\d+)/);
-    if (cw){
-      const appLink = document.createElement("a");
-      appLink.href = `https://crowdworks.jp/deeplink/job_offers/${cw[1]}`;
-      appLink.target = "_blank"; appLink.rel = "noopener";
-      appLink.className = "btn sub";
-      appLink.style.cssText = "padding:6px 12px;font-size:.78rem;text-decoration:none;display:inline-block";
-      appLink.textContent = "📱 アプリで開く";
-      btnRow.appendChild(appLink);
-    }
-
     const btn = document.createElement("button");
     btn.className = "btn sub"; btn.type = "button";
-    btn.style.cssText = "padding:6px 12px;font-size:.78rem";
+    btn.style.cssText = "margin-top:6px;padding:6px 12px;font-size:.78rem";
     btn.textContent = "✉️ 営業文を作る";
     btn.addEventListener("click", ()=> makeSales(`${j.title}\n掲載: ${j.source || ""}\n条件: ${j.meta || ""}`));
-    btnRow.appendChild(btn);
-    d.appendChild(btnRow);
+    d.appendChild(btn);
     box.appendChild(d);
   });
+
+  /* 確実に開ける公式サイトの新着検索（常設） */
+  const quickTitle = document.createElement("div");
+  quickTitle.className = "ai-note";
+  quickTitle.style.marginTop = "12px";
+  quickTitle.textContent = "確実に見たいときは公式の新着検索へ:";
+  const quick = document.createElement("div");
+  quick.style.cssText = "display:flex;flex-wrap:wrap;gap:6px;margin-top:6px";
+  [
+    ["CW ショート動画", "https://crowdworks.jp/public/jobs/search?order=new&search%5Bkeywords%5D=" + encodeURIComponent("ショート動画 編集")],
+    ["CW ナレーション", "https://crowdworks.jp/public/jobs/search?order=new&search%5Bkeywords%5D=" + encodeURIComponent("ナレーション")],
+    ["ランサーズ ショート動画", "https://www.lancers.jp/work/search?keyword=" + encodeURIComponent("ショート動画 編集")],
+    ["ランサーズ ナレーション", "https://www.lancers.jp/work/search?keyword=" + encodeURIComponent("ナレーション")],
+  ].forEach(([label, url])=>{
+    const a = document.createElement("a");
+    a.href = url; a.target = "_blank"; a.rel = "noopener";
+    a.style.cssText = "font-size:.72rem;background:var(--beige);color:var(--green);padding:4px 11px;border-radius:999px;text-decoration:none";
+    a.textContent = label;
+    quick.appendChild(a);
+  });
+
   const refresh = document.createElement("button");
   refresh.className = "btn sub"; refresh.type = "button";
   refresh.style.cssText = "margin-top:10px;padding:6px 12px;font-size:.78rem";
@@ -766,8 +776,8 @@ function renderJobs(items){
   refresh.addEventListener("click", ()=> loadJobs(true));
   const note = document.createElement("div");
   note.className = "ai-note";
-  note.textContent = "※ 検索ベースのため、リンク先の募集が終了している場合があります。「📱 アプリで開く」はクラウドワークス公式アプリが入っている場合に使えます（ランサーズはアプリ連携非対応のためWebで開きます）。";
-  box.append(refresh, note);
+  note.textContent = "※ 案件名のリンク（↗付き）は検索で見つかった実ページに飛びます。リンクのない案件や募集終了のときは、上の公式検索からどうぞ。";
+  box.append(quickTitle, quick, refresh, note);
 }
 
 let jobsLoading = false;
@@ -800,18 +810,40 @@ ${profileText()}
 # ルール
 - 最大5件。実際に検索で見つかった件数だけでよい
 - 架空の案件・うろ覚えの案件は絶対に作らない。確認できたものだけ
+- title: 検索結果に出てきた案件タイトルをなるべくそのまま使う（リンクの照合に使うため）
 - なるべく新しい募集を優先
 - meta: 報酬・条件（検索結果から分かる範囲で。不明なら空文字）
 - why: この人に合う理由をひとこと（20字程度）
-- url: 実際の募集ページのURL（crowdworks.jp または lancers.jp のもの。不明なら空文字）
 - source: 「クラウドワークス」か「ランサーズ」
 
 # 出力形式（このJSONのみを出力。前置き・解説は不要）
-{"items":[{"title":"","source":"","meta":"","url":"","why":""}]}`;
+{"items":[{"title":"","source":"","meta":"","why":""}]}`;
+
+  /* AIの出力タイトルと、検索が返した本物のリンクを2文字一致で照合する */
+  function matchChunk(title, chunks, used){
+    let best = -1, bestScore = 0;
+    const grams = new Set();
+    for (let i = 0; i < title.length - 1; i++) grams.add(title.slice(i, i+2));
+    chunks.forEach((c, idx)=>{
+      if (used.has(idx)) return;
+      const t = c.title || "";
+      let s = 0;
+      for (let i = 0; i < t.length - 1; i++) if (grams.has(t.slice(i, i+2))) s++;
+      if (s > bestScore){ bestScore = s; best = idx; }
+    });
+    if (best >= 0 && bestScore >= 4){ used.add(best); return chunks[best]; }
+    return null;
+  }
 
   try {
-    const res = parseJsonLoose(await callGemini(prompt, true));
-    const items = (res.items || []).filter(j=>j && j.title).slice(0,5);
+    const r = await callGemini(prompt, true, true);
+    const parsed = parseJsonLoose(r.text);
+    const chunks = r.chunks || [];
+    const used = new Set();
+    const items = (parsed.items || []).filter(j=>j && j.title).slice(0,5).map(j=>{
+      const c = matchChunk(String(j.title) + (j.source || ""), chunks, used);
+      return { title:j.title, source:j.source||"", meta:j.meta||"", why:j.why||"", url: c ? c.uri : "" };
+    });
     if (!items.length) throw new Error("今日は条件に合う新着が見つかりませんでした");
     localStorage.setItem("butler.jobs", JSON.stringify({date: today, items}));
     renderJobs(items);
@@ -918,7 +950,7 @@ async function fetchNightReview(){
 /* ====== Gemini API（buzzrと同方式） ====== */
 const GEMINI_MODEL = "gemini-2.5-flash-lite";
 
-async function callGemini(prompt, useSearch){
+async function callGemini(prompt, useSearch, wantMeta){
   if (!store.key) throw new Error("NOKEY");
   const body = {
     contents:[{ parts:[{ text: prompt }] }],
@@ -941,7 +973,13 @@ async function callGemini(prompt, useSearch){
     throw new Error("APIエラー(" + res.status + ")");
   }
   const data = await res.json();
-  return data.candidates[0].content.parts[0].text;
+  const cand = data.candidates[0];
+  const text = (cand.content.parts || []).map(p=>p.text || "").join("");
+  if (!wantMeta) return text;
+  /* 検索グラウンディングの「本物のリンク」を取り出す（AIに書かせない） */
+  const chunks = (cand.groundingMetadata?.groundingChunks || [])
+    .map(c=>c.web).filter(w=>w && w.uri);
+  return { text, chunks };
 }
 
 function parseJsonLoose(text){
