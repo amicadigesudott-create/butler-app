@@ -218,7 +218,7 @@
     padding:10px 12px;font-family:inherit;font-size:.85rem;color:var(--text);
     min-height:80px;resize:vertical;margin-top:10px;
   }
-  .fit-line{font-size:.85rem;font-weight:600;color:var(--green);margin-top:10px}
+  .fit-line{font-size:.85rem;font-weight:600;color:var(--green);margin-top:10px;white-space:pre-wrap}
 
   /* ---------- 設定シート ---------- */
   .overlay{position:fixed;inset:0;background:rgba(40,50,44,.45);display:none;align-items:flex-end;justify-content:center;z-index:50}
@@ -373,6 +373,9 @@
     <label>ポートフォリオ・サンプルURL</label>
     <input type="text" id="setPortfolio" placeholder="例）ボイスサンプルや制作実績のURL">
 
+    <label>詳しい自己紹介文（営業文づくりの素材。案件に響く部分だけ執事が抜粋します）</label>
+    <textarea id="setBio" rows="6" placeholder="経歴・強み・実績・対応内容などを自由に。空欄でも初期の自己紹介文が使われます"></textarea>
+
     <button class="btn" id="setSaveBtn" type="button">保存する</button>
   </div>
 </div>
@@ -404,6 +407,25 @@ const DEFAULT_PROJECTS = [
 ];
 
 const DEFAULT_SKIP = ["新しいAIツールの調査", "SNSの分析・数字チェック", "新規企画の立案"];
+
+/* 詳しい自己紹介文の初期値（設定で上書き可能）。営業文を作るとき、案件に響く部分だけ執事が抜粋します */
+const DEFAULT_BIO = `【動画編集 × 声優歴8年 × 人形劇120公演以上】
+「どうすれば人の心に届くのか」「どうすれば最後まで見てもらえるのか」を長年考えながら活動。ショート動画編集を中心に、視聴者目線で伝わる動画づくりを心がけている。
+
+経歴:
+・人形劇団「劇団すぎのこ」で全国の幼稚園・保育園を巡り120公演以上を上演
+・事務所所属の声優として8年間、ナレーション・キャラクターボイスなど幅広く活動
+
+経験から培った強み:
+・人を惹きつける導入／最後まで見てもらう構成／伝わりやすい言葉選び／印象に残る演出
+
+対応コンテンツ: Instagramリール・TikTok・YouTubeショート・広告動画・商品紹介動画などの短尺
+得意: 同じ商品でもターゲット（男性向け/女性向け/子育て世代向け/感情訴求型/商品訴求型）で見せ方を変える演出提案。ナレーション依頼も対応。
+
+対応可能: ショート動画編集／広告動画編集／構成提案／テロップ挿入／BGM・SE選定／音声整音／ナレーション収録・編集／画像・動画素材構成／AIツール活用
+使用ソフト: Premiere Pro／Canva／自作の動画編集AIツール／AI画像生成・AI動画生成ツール
+ポートフォリオ(Instagram): https://www.instagram.com/yoshida_mama_douga
+スタンス: 丁寧なやり取りとスムーズな対応。相談ベースでも歓迎。`;
 
 /* ====== 状態 ====== */
 const store = {
@@ -1027,6 +1049,10 @@ function copyText(text, okMsg){
   }
 }
 
+function profileBio(){
+  const p = store.profile;
+  return (p.bio && p.bio.trim()) ? p.bio.trim() : DEFAULT_BIO;
+}
 function profileText(){
   const p = store.profile;
   return [
@@ -1035,6 +1061,9 @@ function profileText(){
     p.terms     ? "希望単価・条件: " + p.terms : "",
     p.portfolio ? "ポートフォリオ: " + p.portfolio : "",
     "状況: 妊娠中・子育て中のフリーランス。在宅・宅録ベースで稼働。",
+    "",
+    "【詳しい自己紹介】",
+    profileBio(),
   ].filter(Boolean).join("\n");
 }
 
@@ -1161,30 +1190,43 @@ async function makeSales(jobText){
 
   const prompt = `あなたはクラウドソーシングでの受注率が高い、フリーランス向け営業文のプロです。
 
-# 応募者プロフィール
+# 応募者の全プロフィール（情報の引き出し）
 ${profileText()}
 
 # 案件内容
 ${jobText}
 
-# 依頼
-1) この案件と応募者の相性を ◎ / ○ / △ で判定し、理由を1文で。
-2) この案件への応募メッセージ（営業文）を1通作成。
+# 進め方（重要）
+1) まず案件内容を読み、「クライアントが本当に求めていること・響きそうな価値」を見極める。
+2) 上のプロフィール全体から、この案件に【マッチする経歴・強み・実績だけ】を抜き出す。
+   - 例: 子ども向け/ママ向け案件なら人形劇120公演・育児系の経験を前面に。ナレーション案件なら声優歴8年を前面に。ターゲット別演出が求められる案件ならその強みを。
+   - 案件に関係ない実績は、無理に全部詰め込まない（盛りすぎない）。
+3) 抜き出した要素を自然に織り込んで営業文を書く。
 
-# 営業文の条件
+# 出力するもの
+- fit: 相性を ◎ / ○ / △ で判定
+- reason: 相性の理由を1文
+- highlights: この案件向けにプロフィールから抜き出した「効きそうな要素」を2〜4個の短い配列で（例:["声優歴8年","ママ向け動画の知見"]）
+- message: 応募メッセージ本文
+
+# 営業文(message)の条件
 - 300〜450字
-- 構成: 挨拶と名乗り → 案件内容への理解（募集文の言葉を1つ以上拾って具体的に）→ 提供できる価値・実績 → 納期・対応条件 → 締め
-- プロフィールにある情報のみ使う。誇張・嘘の実績は書かない
-- プロフィールに単価やURLが無い場合、その項目には触れない（「〇〇」などの穴埋めを残さない）
-- 定型文っぽさを避ける。絵文字は使わない
-- そのまま貼り付けられる完成文にする
+- 構成: 挨拶と名乗り → 案件への理解（募集文の言葉を1つ以上拾って具体的に）→ この案件に効く強み・実績（highlightsの内容）→ 対応できること/条件 → 締め
+- プロフィールにある事実のみ使う。誇張・嘘の実績は書かない
+- プロフィールに無い単価や情報は「〇〇」のような穴埋めを残さない（その話題に触れない）
+- ポートフォリオURLがプロフィールにあり、案件に関係しそうなら自然に1回添える
+- 定型文っぽさを避ける。絵文字は使わない。そのまま貼り付けられる完成文にする
 
 # 出力形式（このJSONのみを出力）
-{"fit":"◎", "reason":"", "message":""}`;
+{"fit":"◎", "reason":"", "highlights":["",""], "message":""}`;
 
   try {
     const res = parseJsonLoose(await callGemini(prompt));
-    fit.textContent = `相性 ${res.fit || "○"}：${res.reason || ""}`;
+    let fitText = `相性 ${res.fit || "○"}：${res.reason || ""}`;
+    if (Array.isArray(res.highlights) && res.highlights.length){
+      fitText += `\n効かせたポイント: ${res.highlights.join(" / ")}`;
+    }
+    fit.textContent = fitText;
     fit.style.display = "block";
     lastSalesText = (res.message || "").trim();
     out.textContent = lastSalesText;
@@ -1202,7 +1244,7 @@ document.getElementById("alignBtn").addEventListener("click", doAlign);
 document.getElementById("myPriority").addEventListener("keydown", e=>{ if(e.key==="Enter") doAlign(); });
 document.getElementById("jobPasteBtn").addEventListener("click", ()=> makeSales(document.getElementById("jobPaste").value));
 document.getElementById("salesCopyBtn").addEventListener("click", ()=>{
-  navigator.clipboard.writeText(lastSalesText).then(()=>toast("営業文をコピーしました 📋"));
+  copyText(lastSalesText, "営業文をコピーしました 📋");
 });
 
 /* ====== 設定シート ====== */
@@ -1214,6 +1256,7 @@ function openSettings(){
   document.getElementById("setStrengths").value = p.strengths || "";
   document.getElementById("setTerms").value     = p.terms || "";
   document.getElementById("setPortfolio").value = p.portfolio || "";
+  document.getElementById("setBio").value       = (p.bio && p.bio.trim()) ? p.bio : DEFAULT_BIO;
   ovl.classList.add("open");
 }
 document.getElementById("settingsBtn").addEventListener("click", openSettings);
@@ -1225,6 +1268,7 @@ document.getElementById("setSaveBtn").addEventListener("click", ()=>{
     strengths: document.getElementById("setStrengths").value.trim(),
     terms:     document.getElementById("setTerms").value.trim(),
     portfolio: document.getElementById("setPortfolio").value.trim(),
+    bio:       document.getElementById("setBio").value.trim(),
   };
   ovl.classList.remove("open");
   toast("保存しました。執事が賢くなりました 🤵");
