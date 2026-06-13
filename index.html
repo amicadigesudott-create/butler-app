@@ -1229,6 +1229,15 @@ function applyMode(night){
 }
 modeBtn.addEventListener("click", ()=> applyMode(!document.body.classList.contains("night")));
 
+/* ====== ホーム画面アプリ(standalone)では target=_blank が無反応になる対策 ====== */
+document.addEventListener("click", (e)=>{
+  const a = e.target.closest ? e.target.closest('a[target="_blank"]') : null;
+  if (a && a.href && navigator.standalone){
+    e.preventDefault();
+    window.location.href = a.href;   // standaloneでは直接遷移（外部はSafariで開く）
+  }
+});
+
 /* ====== 初期化 ====== */
 renderTasks(); renderSkip(); renderPrioPick(); renderProjects(); renderNight();
 applyMode(isNightHour());   // 20時以降は自動で夜モード
