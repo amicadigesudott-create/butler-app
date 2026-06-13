@@ -420,6 +420,17 @@ let tasks = store.tasks || DEFAULT_TASKS.map(t => ({text:t, done:false}));
 let skipItems = store.skip || DEFAULT_SKIP.slice();
 let projects = store.projects || DEFAULT_PROJECTS.map(p => ({...p}));
 
+/* ====== 日付が変わったら: 完了タスクは卒業、未完了は翌日に繰越 ====== */
+const TODAY = new Date().toISOString().slice(0,10);
+(function dailyRollover(){
+  const last = localStorage.getItem("butler.lastDate");
+  if (last && last !== TODAY){
+    tasks = tasks.filter(t => !t.done);
+    store.tasks = tasks;
+  }
+  localStorage.setItem("butler.lastDate", TODAY);
+})();
+
 /* ====== ヘッダー・執事の一言 ====== */
 const now = new Date();
 const youbi = ["日","月","火","水","木","金","土"][now.getDay()];
@@ -435,12 +446,61 @@ function butlerMorningMsg(){
   return "おつかれさまです。残りの時間は無理のない範囲で。終わらない分は、わたしが明日に回しておきます。";
 }
 document.getElementById("greetLine").textContent = "おかえりなさいませ、Emi様";
-document.getElementById("butlerMsg").textContent = butlerMorningMsg();
+
+/* 昼の挨拶: AI生成のキャッシュがあればそれを、なければ定型文を返す */
+function currentDayMsg(){
+  try{
+    const c = JSON.parse(localStorage.getItem("butler.greeting"));
+    if (c && c.date === TODAY && c.text) return c.text;
+  }catch(e){}
+  return butlerMorningMsg();
+}
+document.getElementById("butlerMsg").textContent = currentDayMsg();
+
+/* 朝の一言をGeminiで生成（1日1回キャッシュ、失敗時は定型文のまま） */
+async function loadGreeting(){
+  if (isNightHour()) return;
+  try{
+    const c = JSON.parse(localStorage.getItem("butler.greeting"));
+    if (c && c.date === TODAY && c.text) return;   // 今日の分は生成済み
+  }catch(e){}
+  if (!store.key) return;
+  const youbiName = ["日","月","火","水","木","金","土"][now.getDay()];
+  const prompt = `あなたは執事AI「Butler」です。主人のEmi様への今朝の挨拶をひとつ書いてください。
+
+# 今日の情報
+- 日付: ${TODAY}（${youbiName}曜日）
+- プロフィール: ${profileText()}
+- 進行中プロジェクト: ${projects.filter(p=>p.st==="active").map(p=>p.name).join("、") || "なし"}
+- 今日のタスク: ${tasks.slice(0,3).map(t=>t.text).join("、") || "まだ未設定"}
+
+# ルール
+- 2〜3文、80〜120字。落ち着いた温かい執事口調（です・ます）
+- タスクを増やさない。急かさない。不安を煽らない
+- 月曜・木曜は育児系アカウントの更新日なので、該当する曜日だけさりげなく一言添える
+- 「おはようございます」から始める
+
+# 出力
+挨拶文のみを出力（JSONや前置きは不要）`;
+  try{
+    const text = (await callGemini(prompt)).trim().replace(/^["「]|["」]$/g, "");
+    if (text){
+      localStorage.setItem("butler.greeting", JSON.stringify({date: TODAY, text}));
+      if (!document.body.classList.contains("night")){
+        document.getElementById("butlerMsg").textContent = text;
+      }
+    }
+  }catch(e){ /* 定型文のままにする */ }
+}
 
 /* ====== タスク描画 ====== */
 function renderTasks(){
   const wrap = document.getElementById("taskList");
   wrap.innerHTML = "";
+  if (!tasks.length){
+    wrap.innerHTML = `<div class="ai-note" style="padding:8px 0">今日のタスクはまだありません。上の「🤝 執事とすり合わせ」で、今日の3件を一緒に決めましょう。</div>`;
+    return;
+  }
   tasks.slice(0,3).forEach((t,i)=>{   // 表示は最大3件
     const row = document.createElement("div");
     row.className = "task" + (t.done ? " done":"");
@@ -779,7 +839,9 @@ function renderNight(){
 
   const review = document.getElementById("nightReview");
   const close  = document.getElementById("closeMsg");
-  if (rate >= 100){
+  if (total === 0){
+    review.textContent = "本日はタスクのない一日でした。明日の3件は、朝のすり合わせでご一緒に決めましょう。";
+  } else if (rate >= 100){
     review.textContent = "本日はすべてのタスクを終えられました。お見事でございます。これ以上は何もなさらなくて結構です。";
   } else if (rate >= 60){
     review.textContent = "本日は十分な進捗です。残りのタスクは、わたしが責任を持って明日のリストに回しておきます。";
@@ -789,6 +851,52 @@ function renderNight(){
     review.textContent = "今日は手が回らない日もございます。体を休めることも、立派な「今日やるべきこと」のひとつです。";
   }
   close.textContent = "🌙 本日はここまで。スマホを閉じて、ゆっくりお休みください。";
+  scheduleNightReview();   // 夜モード中ならAI総評に差し替え
+}
+
+/* ====== 夜の総評をGeminiで生成（定型文を即表示→AI文に差し替え） ====== */
+let nightReviewTimer = null;
+function scheduleNightReview(){
+  if (!document.body.classList.contains("night")) return;
+  clearTimeout(nightReviewTimer);
+  nightReviewTimer = setTimeout(fetchNightReview, 1500);   // チェック連打中は待つ
+}
+async function fetchNightReview(){
+  if (!store.key || !document.body.classList.contains("night")) return;
+  const total = Math.min(tasks.length, 3);
+  if (!total) return;
+  const done   = tasks.slice(0,3).filter(t=>t.done);
+  const undone = tasks.slice(0,3).filter(t=>!t.done);
+  const rate   = Math.round(done.length/total*100);
+  try{
+    const c = JSON.parse(localStorage.getItem("butler.nightReview"));
+    if (c && c.date === TODAY && c.rate === rate && c.text){
+      document.getElementById("nightReview").textContent = c.text; return;
+    }
+  }catch(e){}
+  const prompt = `あなたは執事AI「Butler」です。主人のEmi様への今夜の総評をひとつ書いてください。
+
+# 今日の結果
+- 完了率: ${rate}%
+- できたこと: ${done.map(t=>t.text).join("、") || "なし"}
+- 残ったこと: ${undone.map(t=>t.text).join("、") || "なし"}
+
+# ルール
+- 2〜3文、80〜130字。落ち着いた温かい執事口調（です・ます）
+- 絶対に責めない。比較しない。不安を煽らない
+- 残ったタスクは「わたしが明日に回しておきます」と執事が引き受ける
+- 完了率60%以上なら、必ず「今日はここまでにして休む」ことを提案する
+- できたことには具体的に1つ触れてねぎらう
+
+# 出力
+総評の文章のみを出力（JSONや前置きは不要）`;
+  try{
+    const text = (await callGemini(prompt)).trim().replace(/^["「]|["」]$/g, "");
+    if (text && document.body.classList.contains("night")){
+      localStorage.setItem("butler.nightReview", JSON.stringify({date: TODAY, rate, text}));
+      document.getElementById("nightReview").textContent = text;
+    }
+  }catch(e){ /* 定型文のままにする */ }
 }
 
 /* ====== Gemini API（buzzrと同方式） ====== */
@@ -1044,13 +1152,15 @@ function applyMode(night){
   document.body.classList.toggle("night", night);
   modeBtn.textContent = night ? "☀️ 朝" : "🌙 夜";
   document.getElementById("butlerMsg").textContent =
-    night ? "本日もおつかれさまでした。今日の振り返りをご用意しております。" : butlerMorningMsg();
+    night ? "本日もおつかれさまでした。今日の振り返りをご用意しております。" : currentDayMsg();
+  if (night) scheduleNightReview();
 }
 modeBtn.addEventListener("click", ()=> applyMode(!document.body.classList.contains("night")));
 
 /* ====== 初期化 ====== */
 renderTasks(); renderSkip(); renderPrioPick(); renderProjects(); renderNight();
 applyMode(isNightHour());   // 20時以降は自動で夜モード
+loadGreeting();             // 朝の一言をAI生成（1日1回・キャッシュあり）
 </script>
 </body>
 </html>
