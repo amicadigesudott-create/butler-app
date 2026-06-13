@@ -735,12 +735,28 @@ function renderJobs(items){
       why.textContent = "🤵 " + j.why;
       d.appendChild(why);
     }
+    const btnRow = document.createElement("div");
+    btnRow.style.cssText = "display:flex;gap:8px;margin-top:6px;flex-wrap:wrap";
+
+    /* クラウドワークスの案件はアプリ(Universal Link)で直接開ける */
+    const cw = (j.url || "").match(/crowdworks\.jp\/public\/jobs\/(\d+)/);
+    if (cw){
+      const appLink = document.createElement("a");
+      appLink.href = `https://crowdworks.jp/deeplink/job_offers/${cw[1]}`;
+      appLink.target = "_blank"; appLink.rel = "noopener";
+      appLink.className = "btn sub";
+      appLink.style.cssText = "padding:6px 12px;font-size:.78rem;text-decoration:none;display:inline-block";
+      appLink.textContent = "📱 アプリで開く";
+      btnRow.appendChild(appLink);
+    }
+
     const btn = document.createElement("button");
     btn.className = "btn sub"; btn.type = "button";
-    btn.style.cssText = "margin-top:6px;padding:6px 12px;font-size:.78rem";
+    btn.style.cssText = "padding:6px 12px;font-size:.78rem";
     btn.textContent = "✉️ 営業文を作る";
     btn.addEventListener("click", ()=> makeSales(`${j.title}\n掲載: ${j.source || ""}\n条件: ${j.meta || ""}`));
-    d.appendChild(btn);
+    btnRow.appendChild(btn);
+    d.appendChild(btnRow);
     box.appendChild(d);
   });
   const refresh = document.createElement("button");
@@ -750,7 +766,7 @@ function renderJobs(items){
   refresh.addEventListener("click", ()=> loadJobs(true));
   const note = document.createElement("div");
   note.className = "ai-note";
-  note.textContent = "※ 検索ベースのため、リンク先の募集が終了している場合があります。応募前にページ側の条件をご確認ください。";
+  note.textContent = "※ 検索ベースのため、リンク先の募集が終了している場合があります。「📱 アプリで開く」はクラウドワークス公式アプリが入っている場合に使えます（ランサーズはアプリ連携非対応のためWebで開きます）。";
   box.append(refresh, note);
 }
 
