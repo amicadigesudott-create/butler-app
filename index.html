@@ -444,8 +444,17 @@ let tasks = store.tasks || DEFAULT_TASKS.map(t => ({text:t, done:false}));
 let skipItems = store.skip || DEFAULT_SKIP.slice();
 let projects = store.projects || DEFAULT_PROJECTS.map(p => ({...p}));
 
+/* ====== 日付ユーティリティ（端末のローカル時間=日本時間で統一） ====== */
+function localDate(d){
+  d = d || new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const dd = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dd}`;   // toISOString()はUTCになり1日ずれるため使わない
+}
+
 /* ====== 日付が変わったら: 完了タスクは卒業、未完了は翌日に繰越 ====== */
-const TODAY = new Date().toISOString().slice(0,10);
+const TODAY = localDate();
 (function dailyRollover(){
   const last = localStorage.getItem("butler.lastDate");
   if (last && last !== TODAY){
@@ -453,6 +462,19 @@ const TODAY = new Date().toISOString().slice(0,10);
     store.tasks = tasks;
   }
   localStorage.setItem("butler.lastDate", TODAY);
+})();
+
+/* ====== 月・木は育児系アカウントの投稿タスクを自然に追加 ====== */
+(function addIkujiPostTask(){
+  const dow = new Date().getDay();          // 0=日 1=月 … 4=木
+  if (dow !== 1 && dow !== 4) return;        // 月・木以外は何もしない
+  if (localStorage.getItem("butler.ikujiAddedDate") === TODAY) return;  // 今日はもう処理済み
+  const already = tasks.some(t => t.text.includes("育児") && t.text.includes("投稿"));
+  if (!already){
+    tasks.unshift({ text:"育児系アカウントに投稿する（月木の更新日）", done:false });
+    store.tasks = tasks;
+  }
+  localStorage.setItem("butler.ikujiAddedDate", TODAY);   // 削除しても同じ日に再追加しない
 })();
 
 /* ====== ヘッダー・執事の一言 ====== */
@@ -680,7 +702,7 @@ let newsLoading = false;
 async function loadNews(force){
   if (newsLoading) return;
   const box = document.getElementById("newsBox");
-  const today = new Date().toISOString().slice(0,10);
+  const today = localDate();
   let cache = null;
   try { cache = JSON.parse(localStorage.getItem("butler.news")) } catch(e){}
   if (!force && cache && cache.date === today && Array.isArray(cache.items) && cache.items.length){
@@ -816,7 +838,7 @@ let jobsLoading = false;
 async function loadJobs(force){
   if (jobsLoading) return;
   const box = document.getElementById("jobBox");
-  const today = new Date().toISOString().slice(0,10);
+  const today = localDate();
   let cache = null;
   try { cache = JSON.parse(localStorage.getItem("butler.jobs")) } catch(e){}
   if (!force && cache && cache.date === today && Array.isArray(cache.items) && cache.items.length){
