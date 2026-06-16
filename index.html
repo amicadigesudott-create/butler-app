@@ -100,6 +100,11 @@
     font-size:.75rem;color:transparent;transition:all .2s;
   }
   .task.done .check{background:var(--green);border-color:var(--green);color:#fff}
+  .task .t-edit{
+    flex:none;border:none;background:none;cursor:pointer;font-size:.95rem;
+    padding:4px;opacity:.55;line-height:1;
+  }
+  .task .t-edit:active{opacity:1}
   .hint{font-size:.72rem;color:var(--text-sub);margin-top:8px;text-align:right}
 
   /* ---------- やらないこと ---------- */
@@ -298,7 +303,7 @@
   <section class="card">
     <h2><span class="emoji">☀️</span>今日の最重要タスク（3件だけ）</h2>
     <div id="taskList"></div>
-    <div class="hint">タップで完了 ／ 長押しで内容を編集</div>
+    <div class="hint">タップで完了 ／ ✏️で書き直し</div>
   </section>
 
   <section class="card skip-card">
@@ -550,29 +555,36 @@ function renderTasks(){
   tasks.slice(0,3).forEach((t,i)=>{   // 表示は最大3件
     const row = document.createElement("div");
     row.className = "task" + (t.done ? " done":"");
-    row.innerHTML = `<span class="num">${i+1}</span><span class="t-text"></span><span class="check">✓</span>`;
-    row.querySelector(".t-text").textContent = t.text;
 
-    /* 長押し編集が発火した直後の click は無効化する */
-    let longPressed = false;
-    row.addEventListener("click", ()=>{
-      if (longPressed) { longPressed = false; return; }
+    const num = document.createElement("span");
+    num.className = "num"; num.textContent = i+1;
+
+    const text = document.createElement("span");
+    text.className = "t-text"; text.textContent = t.text;
+    /* 文字部分をタップ → 完了の切り替え */
+    text.addEventListener("click", ()=>{
       t.done = !t.done; store.tasks = tasks; renderTasks(); renderNight();
     });
-    /* 長押しで編集 */
-    let timer = null;
-    const start = ()=>{ timer = setTimeout(()=>{
-      timer = null; longPressed = true;
-      const v = prompt("タスクを編集", t.text);
-      if (v && v.trim()) { t.text = v.trim(); store.tasks = tasks; renderTasks(); renderNight(); }
-    }, 600); };
-    const cancel = ()=>{ if (timer) clearTimeout(timer); };
-    row.addEventListener("touchstart", start, {passive:true});
-    row.addEventListener("touchend", cancel);
-    row.addEventListener("touchmove", cancel);
-    row.addEventListener("mousedown", start);
-    row.addEventListener("mouseup", cancel);
-    row.addEventListener("mouseleave", cancel);
+
+    /* ✏️ボタン → 書き直し。新しい文に置き換え、元の文は残さない */
+    const edit = document.createElement("button");
+    edit.className = "t-edit"; edit.type = "button"; edit.textContent = "✏️";
+    edit.setAttribute("aria-label", "このタスクを書き直す");
+    edit.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const v = prompt("タスクを書き直す", t.text);
+      if (v === null) return;                 // キャンセルは何もしない
+      const nv = v.trim();
+      if (nv){ t.text = nv; store.tasks = tasks; renderTasks(); renderNight(); }
+    });
+
+    const check = document.createElement("span");
+    check.className = "check"; check.textContent = "✓";
+    check.addEventListener("click", ()=>{
+      t.done = !t.done; store.tasks = tasks; renderTasks(); renderNight();
+    });
+
+    row.append(num, text, edit, check);
     wrap.appendChild(row);
   });
 }
